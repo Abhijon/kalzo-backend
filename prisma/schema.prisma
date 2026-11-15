@@ -18,11 +18,12 @@ model Role {
 model User {
   id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email           String           @unique
-  passwordHash    String           @map("password_hash")
+  passwordHash    String?          @map("password_hash")
   roleId          String           @map("role_id") @db.Uuid
   role            Role             @relation(fields: [roleId], references: [id])
   isActive        Boolean          @default(false) @map("is_active")
   customerProfile CustomerProfile?
+  artistProfile   ArtistProfile?
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -44,4 +45,15 @@ model CustomerProfile {
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("customer_profiles")
+}
+
+model ArtistProfile {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mobileNumber String   @map("mobile_number")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("artist_profiles")
 }

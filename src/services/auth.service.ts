@@ -12,7 +12,7 @@ const publicUserFields = {
 export function findUserByEmail(email: string) {
   return prisma.user.findUnique({
     where: { email },
-    select: { ...publicUserFields, passwordHash: true },
+    select: publicUserFields,
   });
 }
 
@@ -29,6 +29,12 @@ export function findUserWithProfileById(id: string) {
           customerType: true,
           reasonForBooking: true,
           businessName: true,
+          mobileNumber: true,
+        },
+      },
+      artistProfile: {
+        select: {
+          id: true,
           mobileNumber: true,
         },
       },

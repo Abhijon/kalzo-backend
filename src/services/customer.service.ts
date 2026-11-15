@@ -9,9 +9,19 @@ export type CustomerProfileInput = {
   mobileNumber: string;
 };
 
-export function createCustomer(email: string, passwordHash: string, roleId: string, profile: CustomerProfileInput) {
+const customerProfileSelect = {
+  id: true,
+  fullName: true,
+  location: true,
+  customerType: true,
+  reasonForBooking: true,
+  businessName: true,
+  mobileNumber: true,
+} as const;
+
+export function createCustomer(email: string, roleId: string, profile: CustomerProfileInput) {
   return prisma.user.create({
-    data: { email, passwordHash, roleId, customerProfile: { create: profile } },
+    data: { email, roleId, customerProfile: { create: profile } },
     select: {
       id: true,
       email: true,
@@ -19,17 +29,7 @@ export function createCustomer(email: string, passwordHash: string, roleId: stri
       createdAt: true,
       updatedAt: true,
       role: { select: { name: true } },
-      customerProfile: {
-        select: {
-          id: true,
-          fullName: true,
-          location: true,
-          customerType: true,
-          reasonForBooking: true,
-          businessName: true,
-          mobileNumber: true,
-        },
-      },
+      customerProfile: { select: customerProfileSelect },
     },
   });
 }

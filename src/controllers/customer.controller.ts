@@ -3,14 +3,13 @@ import * as authService from "../services/auth.service";
 import * as customerService from "../services/customer.service";
 import * as roleService from "../services/role.service";
 import { ApiError } from "../utils/apiError";
-import { hashPassword } from "../utils/password";
+import { markOtpSent, OTP_COOLDOWN_SECONDS } from "../utils/otpCooldown";
 import { sendSuccess } from "../utils/response";
 import { ROLES } from "../utils/roles";
 import { toPublicUser } from "../utils/user";
 
 type CustomerSignupBody = customerService.CustomerProfileInput & {
   email: string;
-  password: string;
 };
 
 export async function signup(req: Request, res: Response) {
@@ -23,8 +22,7 @@ export async function signup(req: Request, res: Response) {
   const role = await roleService.findRoleByName(ROLES.CUSTOMER);
   if (!role) throw new ApiError(500, "Customer role is missing from the roles table");
 
-  const passwordHash = await hashPassword(body.password);
-  const { customerProfile, ...created } = await customerService.createCustomer(email, passwordHash, role.id, {
+  const { customerProfile, ...created } = await customerService.createCustomer(email, role.id, {
     fullName: body.fullName,
     location: body.location,
     customerType: body.customerType,
@@ -33,12 +31,15 @@ export async function signup(req: Request, res: Response) {
     mobileNumber: body.mobileNumber,
   });
 
+  markOtpSent(email);
+
   sendSuccess(
     res,
     {
       message: "Account created. Verify the OTP to activate it.",
       user: toPublicUser(created),
       profile: customerProfile,
+      cooldownSeconds: OTP_COOLDOWN_SECONDS,
     },
     201,
   );

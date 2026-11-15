@@ -8,7 +8,6 @@ const router = Router();
 
 const loginSchema = z.object({
   email: z.email(),
-  password: z.string().min(1, "Password is required"),
 });
 
 const verifyOtpSchema = z.object({
@@ -21,35 +20,38 @@ const verifyOtpSchema = z.object({
  * /login:
  *   post:
  *     tags: [Auth]
- *     summary: Log in as a customer or artist with email and password
+ *     summary: Request a login OTP for an existing customer or artist (email only)
+ *     description: No password. While STATIC_OTP_ENABLED is true, use the static OTP with /verify-otp. Real email OTP comes later.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [email, password]
+ *             required: [email]
  *             properties:
  *               email: { type: string, format: email }
- *               password: { type: string, format: password }
  *     responses:
  *       200:
- *         description: Logged in; user.role tells the client which app area to open
+ *         description: OTP ready (static OTP for now)
  *         content:
  *           application/json:
- *             schema: { $ref: '#/components/schemas/AuthResponse' }
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message: { type: string, example: "OTP sent. Enter the code to log in." }
+ *                     email: { type: string, format: email }
  *       400:
  *         description: Invalid input
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
- *       401:
- *         description: Invalid email or password
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
- *       403:
- *         description: Account not verified yet (isActive is false)
+ *       404:
+ *         description: No account for this email
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
@@ -58,11 +60,55 @@ router.post("/login", validate(loginSchema), authController.login);
 
 /**
  * @swagger
+ * /resend-otp:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Resend the OTP after signup or login
+ *     description: 60s cooldown between sends (same as the frontend RESEND timer). Static OTP for now.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, format: email }
+ *     responses:
+ *       200:
+ *         description: OTP resent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message: { type: string }
+ *                     email: { type: string, format: email }
+ *                     cooldownSeconds: { type: integer, example: 60 }
+ *       404:
+ *         description: No account for this email
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *       429:
+ *         description: Cooldown still active
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ */
+router.post("/resend-otp", validate(loginSchema), authController.resendOtp);
+
+/**
+ * @swagger
  * /verify-otp:
  *   post:
  *     tags: [Auth]
- *     summary: Verify the signup OTP, activate the account (isActive = true) and receive a JWT
- *     description: Uses the static OTP from the server environment while STATIC_OTP_ENABLED is true.
+ *     summary: Verify OTP after signup or login and receive a JWT
+ *     description: Uses the static OTP from the server environment while STATIC_OTP_ENABLED is true. Activates the account on first verify.
  *     requestBody:
  *       required: true
  *       content:
@@ -75,17 +121,12 @@ router.post("/login", validate(loginSchema), authController.login);
  *               otp: { type: string, pattern: '^\d{4}$' }
  *     responses:
  *       200:
- *         description: Account verified and logged in
+ *         description: Verified and logged in
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/AuthResponse' }
  *       400:
  *         description: Invalid email or OTP
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
- *       409:
- *         description: Account is already verified
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
@@ -107,7 +148,7 @@ router.post("/verify-otp", validate(verifyOtpSchema), authController.verifyOtp);
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Current user; profile is the customer profile for customers, null otherwise
+ *         description: Current user; profile is customer or artist profile depending on role
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/MeResponse' }

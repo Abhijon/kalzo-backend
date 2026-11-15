@@ -13,7 +13,7 @@ const options = {
     info: {
       title: "Kalzo API",
       version: "1.0.0",
-      description: "REST API for the Kalzo web and mobile apps.",
+      description: "REST API for the Kalzo web and mobile apps. Auth is email OTP (static OTP while email delivery is pending).",
     },
     servers: [{ url: "/api/v1" }],
     components: {
@@ -64,18 +64,31 @@ const options = {
             mobileNumber: { type: "string" },
           },
         },
+        ArtistProfile: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            mobileNumber: { type: "string" },
+          },
+        },
         CustomerSignupRequest: {
           type: "object",
-          required: ["email", "password", "confirmPassword", "fullName", "location", "customerType", "reasonForBooking", "mobileNumber"],
+          required: ["email", "fullName", "location", "customerType", "reasonForBooking", "mobileNumber"],
           properties: {
             email: { type: "string", format: "email" },
-            password: { type: "string", format: "password", minLength: 8 },
-            confirmPassword: { type: "string", format: "password", description: "Must match password" },
             fullName: { type: "string" },
             location: { type: "string", description: "City" },
             customerType: { type: "string", description: '"You are" dropdown value, e.g. Individual / family' },
             reasonForBooking: { type: "string", description: "Reason for booking dropdown value" },
             businessName: { type: "string", maxLength: 120, description: "Optional; for business customers (hotel, corporate, café, etc.)" },
+            mobileNumber: { type: "string", pattern: "^\\d{10}$", description: "10-digit mobile number without +91" },
+          },
+        },
+        ArtistSignupRequest: {
+          type: "object",
+          required: ["email", "mobileNumber"],
+          properties: {
+            email: { type: "string", format: "email" },
             mobileNumber: { type: "string", pattern: "^\\d{10}$", description: "10-digit mobile number without +91" },
           },
         },
@@ -88,8 +101,12 @@ const options = {
               properties: {
                 user: { $ref: "#/components/schemas/User" },
                 profile: {
-                  allOf: [{ $ref: "#/components/schemas/CustomerProfile" }],
+                  description: "CustomerProfile for customers, ArtistProfile for artists, null otherwise",
                   nullable: true,
+                  oneOf: [
+                    { $ref: "#/components/schemas/CustomerProfile" },
+                    { $ref: "#/components/schemas/ArtistProfile" },
+                  ],
                 },
               },
             },
@@ -105,6 +122,20 @@ const options = {
                 message: { type: "string", example: "Account created. Verify the OTP to activate it." },
                 user: { $ref: "#/components/schemas/User" },
                 profile: { $ref: "#/components/schemas/CustomerProfile" },
+              },
+            },
+          },
+        },
+        ArtistSignupResponse: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: {
+              type: "object",
+              properties: {
+                message: { type: "string", example: "Account created. Verify the OTP to activate it." },
+                user: { $ref: "#/components/schemas/User" },
+                profile: { $ref: "#/components/schemas/ArtistProfile" },
               },
             },
           },
