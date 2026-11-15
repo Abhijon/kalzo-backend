@@ -5,29 +5,22 @@ import { validate } from "../../utils/validate";
 
 const router = Router();
 
-const customerSignupSchema = z
-  .object({
-    fullName: z.string().trim().min(1, "Full name is required"),
-    location: z.string().trim().min(1, "Location is required"),
-    customerType: z.string().trim().min(1, "Please select who you are"),
-    reasonForBooking: z.string().trim().min(1, "Reason for booking is required"),
-    businessName: z.string().trim().max(120).optional(),
-    email: z.email(),
-    mobileNumber: z.string().regex(/^\d{10}$/, "Mobile number must be 10 digits"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+const customerSignupSchema = z.object({
+  fullName: z.string().trim().min(1, "Full name is required"),
+  location: z.string().trim().min(1, "Location is required"),
+  customerType: z.string().trim().min(1, "Please select who you are"),
+  reasonForBooking: z.string().trim().min(1, "Reason for booking is required"),
+  businessName: z.string().trim().max(120).optional(),
+  email: z.email(),
+  mobileNumber: z.string().regex(/^\d{10}$/, "Mobile number must be 10 digits"),
+});
 
 /**
  * @swagger
  * /customer-signup:
  *   post:
  *     tags: [Customer]
- *     summary: Create a customer account with profile details
+ *     summary: Create a customer account (no password; verify OTP next)
  *     requestBody:
  *       required: true
  *       content:
@@ -35,7 +28,7 @@ const customerSignupSchema = z
  *           schema: { $ref: '#/components/schemas/CustomerSignupRequest' }
  *     responses:
  *       201:
- *         description: Customer account created
+ *         description: Customer account created; call /verify-otp with the static OTP
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/CustomerSignupResponse' }

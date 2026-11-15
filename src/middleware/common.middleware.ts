@@ -20,7 +20,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
 
   try {
     const payload = verifyToken(header.slice("Bearer ".length));
-    req.user = { id: payload.sub, email: payload.email, role: payload.role };
+    req.user = { id: payload.id, email: payload.email, role: payload.role };
   } catch {
     throw new ApiError(401, "Invalid or expired token");
   }

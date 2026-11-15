@@ -3,37 +3,59 @@ import * as authService from "../services/auth.service";
 import { env } from "../config/env";
 import { signToken } from "../lib/jwt";
 import { ApiError } from "../utils/apiError";
-import { verifyPassword } from "../utils/password";
+import { assertCanSendOtp, markOtpSent, OTP_COOLDOWN_SECONDS } from "../utils/otpCooldown";
 import { sendSuccess } from "../utils/response";
 import { toPublicUser } from "../utils/user";
 
+/** Request an OTP for login. Email OTP comes later; for now the static OTP is used. */
 export async function login(req: Request, res: Response) {
   const email = String(req.body.email).trim().toLowerCase();
-  const { password } = req.body as { password: string };
 
   const found = await authService.findUserByEmail(email);
-  if (!found || !(await verifyPassword(password, found.passwordHash))) {
-    throw new ApiError(401, "Invalid email or password");
-  }
-  if (!found.isActive) {
-    throw new ApiError(403, "Account is not verified. Verify the OTP to activate it.");
-  }
+  if (!found) throw new ApiError(404, "We couldn't find an account with this email");
 
-  const { passwordHash: _passwordHash, ...rest } = found;
-  const user = toPublicUser(rest);
-  const token = signToken({ sub: user.id, email: user.email, role: user.role });
+  assertCanSendOtp(email);
+  markOtpSent(email);
 
-  sendSuccess(res, { token, user });
+  sendSuccess(res, {
+    message: "OTP sent. Enter the code to log in.",
+    email: found.email,
+    cooldownSeconds: OTP_COOLDOWN_SECONDS,
+  });
+}
+
+/** Resend OTP after signup or login. Same static OTP for now; email delivery comes later. */
+export async function resendOtp(req: Request, res: Response) {
+  const email = String(req.body.email).trim().toLowerCase();
+
+  const found = await authService.findUserByEmail(email);
+  if (!found) throw new ApiError(404, "We couldn't find an account with this email");
+
+  assertCanSendOtp(email);
+  markOtpSent(email);
+
+  sendSuccess(res, {
+    message: "OTP resent. Enter the code to continue.",
+    email: found.email,
+    cooldownSeconds: OTP_COOLDOWN_SECONDS,
+  });
 }
 
 export async function getMe(req: Request, res: Response) {
   const found = await authService.findUserWithProfileById(req.user!.id);
   if (!found) throw new ApiError(404, "User not found");
 
-  const { customerProfile, ...user } = found;
-  sendSuccess(res, { user: toPublicUser(user), profile: customerProfile });
+  const { customerProfile, artistProfile, ...user } = found;
+  sendSuccess(res, {
+    user: toPublicUser(user),
+    profile: customerProfile ?? artistProfile,
+  });
 }
 
+/**
+ * Verify OTP for signup activation or login.
+ * Activates the account on first success, then always returns a JWT.
+ */
 export async function verifyOtp(req: Request, res: Response) {
   const email = String(req.body.email).trim().toLowerCase();
   const { otp } = req.body as { otp: string };
@@ -44,10 +66,9 @@ export async function verifyOtp(req: Request, res: Response) {
 
   const found = await authService.findUserByEmail(email);
   if (!found || otp !== env.STATIC_OTP) throw new ApiError(400, "Invalid email or OTP");
-  if (found.isActive) throw new ApiError(409, "Account is already verified");
 
-  const user = toPublicUser(await authService.activateUser(found.id));
-  const token = signToken({ sub: user.id, email: user.email, role: user.role });
+  const user = toPublicUser(found.isActive ? found : await authService.activateUser(found.id));
+  const token = signToken({ id: user.id, email: user.email, role: user.role });
 
   sendSuccess(res, { token, user });
 }
