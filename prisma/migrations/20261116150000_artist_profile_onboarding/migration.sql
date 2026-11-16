@@ -1,0 +1,26 @@
+-- Artist onboarding fields for "Submit profile for verification" (media paths are S3 keys later)
+ALTER TABLE "artist_profiles" ADD COLUMN "stage_name" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "legal_name" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "base_city" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "state_name" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "current_city" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "current_state" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "preferred_cities" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "artist_profiles" ADD COLUMN "preferred_states" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "artist_profiles" ADD COLUMN "discipline" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "subcategory" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "bio" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "instagram" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "rate_inr" INTEGER;
+ALTER TABLE "artist_profiles" ADD COLUMN "pricing_unit" TEXT NOT NULL DEFAULT 'hour';
+ALTER TABLE "artist_profiles" ADD COLUMN "travel_setting" TEXT NOT NULL DEFAULT 'including';
+ALTER TABLE "artist_profiles" ADD COLUMN "travel_charge_inr" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "artist_profiles" ADD COLUMN "stay_charge_inr" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "artist_profiles" ADD COLUMN "city_rates" JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE "artist_profiles" ADD COLUMN "photo_path" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "art_photo_path" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "face_video_path" TEXT;
+ALTER TABLE "artist_profiles" ADD COLUMN "reels" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "artist_profiles" ADD COLUMN "primary_reel" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "artist_profiles" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'draft';
+ALTER TABLE "artist_profiles" ADD COLUMN "verification_status" TEXT NOT NULL DEFAULT 'not_started';

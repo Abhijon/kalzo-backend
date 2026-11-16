@@ -5,6 +5,9 @@ node_modules
 dist
 *.tsbuildinfo
 
+# local media uploads (replace with S3 later)
+uploads/
+
 # environment
 .env
 .env.*
