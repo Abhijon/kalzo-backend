@@ -15,7 +15,7 @@ const schema = z
       .transform((value) => value === "true"),
     STATIC_OTP: z.preprocess(
       (value) => (value === "" ? undefined : value),
-      z.string().regex(/^\d{4}$/, "STATIC_OTP must be 4 digits").optional(),
+      z.string().regex(/^\d{6}$/, "STATIC_OTP must be 6 digits").optional(),
     ),
   })
   .refine((e) => !e.STATIC_OTP_ENABLED || e.STATIC_OTP, {

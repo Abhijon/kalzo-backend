@@ -12,7 +12,7 @@ const loginSchema = z.object({
 
 const verifyOtpSchema = z.object({
   email: z.email(),
-  otp: z.string().regex(/^\d{4}$/, "OTP must be 4 digits"),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
 });
 
 /**
