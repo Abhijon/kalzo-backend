@@ -92,13 +92,25 @@ const options = {
             faceVideoPath: { type: "string", nullable: true },
             reels: { type: "array", items: { type: "string" }, maxItems: 4 },
             primaryReel: { type: "integer", minimum: 0, maximum: 3 },
-            status: { type: "string", enum: ["draft", "pending_review", "approved", "rejected"] },
             verificationStatus: {
               type: "string",
-              enum: ["not_started", "submitted", "verified", "failed"],
+              enum: ["unverified", "verified", "rejected"],
             },
+            rejectionReason: { type: "string", nullable: true },
+            bankAccountHolder: { type: "string", nullable: true, description: "Admin-only in list/detail responses" },
+            bankName: { type: "string", nullable: true },
+            bankAccountNumber: { type: "string", nullable: true },
+            bankIfsc: { type: "string", nullable: true },
           },
         },
+        RejectArtistRequest: {
+          type: "object",
+          required: ["reason"],
+          properties: {
+            reason: { type: "string", minLength: 1, maxLength: 2000, description: "Required rejection comment" },
+          },
+        },
+
         CustomerSignupRequest: {
           type: "object",
           required: ["email", "fullName", "location", "customerType", "reasonForBooking", "mobileNumber"],

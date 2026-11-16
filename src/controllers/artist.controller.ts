@@ -4,11 +4,14 @@ import * as artistService from "../services/artist.service";
 import * as authService from "../services/auth.service";
 import * as mediaService from "../services/media.service";
 import * as roleService from "../services/role.service";
+import { toPublicArtist } from "../utils/artistResponse";
 import { ApiError } from "../utils/apiError";
 import { markOtpSent, OTP_COOLDOWN_SECONDS } from "../utils/otpCooldown";
+import { paginationMeta, parsePagination } from "../utils/pagination";
 import { sendSuccess } from "../utils/response";
 import { ROLES } from "../utils/roles";
 import { toPublicUser } from "../utils/user";
+import { VERIFICATION_STATUS } from "../utils/verification";
 
 type ArtistSignupBody = {
   email: string;
@@ -57,15 +60,96 @@ const profileFormSchema = z.object({
   stayChargeInr: z.coerce.number().int().min(0).max(500000).default(0),
   cityRates: z.record(z.string().max(100), cityRateSchema).default({}),
   primaryReel: z.coerce.number().int().min(0).max(3).default(0),
+  bankAccountHolder: z.string().trim().min(2).max(100),
+  bankName: z.string().trim().min(2).max(100),
+  bankAccountNumber: z
+    .string()
+    .trim()
+    .regex(/^\d{9,18}$/, "Account number must be 9–18 digits"),
+  bankIfsc: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid IFSC code"),
 });
 
-function parseJsonField<T>(raw: unknown, field: string, fallback: T): T {
+/** Swagger/multipart sometimes uses curly quotes. */
+function normalizeFormText(raw: string): string {
+  return raw
+    .trim()
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'");
+}
+
+/**
+ * Accepts:
+ * - array already
+ * - JSON array string: ["Delhi NCR","Mumbai"]
+ * - comma-separated: Delhi NCR,Mumbai,Jaipur
+ */
+function parseStringList(raw: unknown, field: string, fallback: string[] = []): string[] {
   if (raw == null || raw === "") return fallback;
-  if (typeof raw !== "string") return raw as T;
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v).trim()).filter(Boolean);
+  }
+
+  let text = normalizeFormText(String(raw));
+  // Unwrap accidental double-encoding: "\"[\\\"a\\\"]\"" or "\"[\"a\"]\""
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    try {
+      const unwrapped = JSON.parse(text);
+      if (typeof unwrapped === "string") text = unwrapped.trim();
+      else if (Array.isArray(unwrapped)) {
+        return unwrapped.map((v) => String(v).trim()).filter(Boolean);
+      }
+    } catch {
+      text = text.slice(1, -1).trim();
+    }
+  }
+
+  if (text.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error("not array");
+      return parsed.map((v) => String(v).trim()).filter(Boolean);
+    } catch {
+      throw new ApiError(400, `${field} must be a JSON array or comma-separated list`);
+    }
+  }
+
+  return text
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+/** Accepts JSON object string, empty, or already-parsed object. */
+function parseCityRates(raw: unknown): Record<string, unknown> {
+  if (raw == null || raw === "") return {};
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+
+  let text = normalizeFormText(String(raw));
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    try {
+      const unwrapped = JSON.parse(text);
+      if (typeof unwrapped === "string") text = unwrapped.trim();
+      else if (typeof unwrapped === "object" && unwrapped && !Array.isArray(unwrapped)) {
+        return unwrapped as Record<string, unknown>;
+      }
+    } catch {
+      text = text.slice(1, -1).trim();
+    }
+  }
+
+  if (!text || text === "{}") return {};
   try {
-    return JSON.parse(raw) as T;
+    const parsed = JSON.parse(text);
+    if (typeof parsed !== "object" || parsed == null || Array.isArray(parsed)) {
+      throw new Error("not object");
+    }
+    return parsed as Record<string, unknown>;
   } catch {
-    throw new ApiError(400, `${field} must be valid JSON`);
+    throw new ApiError(400, 'cityRates must be a JSON object e.g. {"Delhi":{"rate":25000,"travel":"not_needed"}}');
   }
 }
 
@@ -109,9 +193,24 @@ export async function getProfile(req: Request, res: Response) {
   sendSuccess(res, { profile });
 }
 
+/** GET /artists/verified?page=1&limit=10 — public list of verified artists */
+export async function listVerifiedArtists(req: Request, res: Response) {
+  const q = parsePagination(req.query);
+  const { artists, totalCount } = await artistService.listProfiles({
+    limit: q.limit,
+    offset: q.offset,
+    verificationStatus: VERIFICATION_STATUS.VERIFIED,
+  });
+
+  sendSuccess(res, {
+    artists: artists.map(toPublicArtist),
+    pagination: paginationMeta(totalCount, q),
+  });
+}
+
 /**
  * POST /artist/profile — one multipart form-data submit.
- * Fields: profile text + photo, artPhoto, faceVideo, reels (2–4).
+ * Fields: profile text + bank details + photo, artPhoto, faceVideo, reels (2–4).
  */
 export async function saveProfile(req: Request, res: Response) {
   await requireArtistProfile(req.user!.id);
@@ -131,9 +230,9 @@ export async function saveProfile(req: Request, res: Response) {
 
   const parsed = profileFormSchema.safeParse({
     ...req.body,
-    preferredCities: parseJsonField(req.body.preferredCities, "preferredCities", []),
-    preferredStates: parseJsonField(req.body.preferredStates, "preferredStates", []),
-    cityRates: parseJsonField(req.body.cityRates, "cityRates", {}),
+    preferredCities: parseStringList(req.body.preferredCities, "preferredCities"),
+    preferredStates: parseStringList(req.body.preferredStates, "preferredStates", []),
+    cityRates: parseCityRates(req.body.cityRates),
   });
 
   if (!parsed.success) {

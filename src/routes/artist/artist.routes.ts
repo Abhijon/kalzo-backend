@@ -86,6 +86,10 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *               - bio
  *               - instagram
  *               - rateInr
+ *               - bankAccountHolder
+ *               - bankName
+ *               - bankAccountNumber
+ *               - bankIfsc
  *               - photo
  *               - artPhoto
  *               - faceVideo
@@ -97,8 +101,8 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *               stateName: { type: string }
  *               currentCity: { type: string }
  *               currentState: { type: string }
- *               preferredCities: { type: string, description: 'JSON array string e.g. ["Delhi","Mumbai"]' }
- *               preferredStates: { type: string, description: 'JSON array string' }
+ *               preferredCities: { type: string, description: 'Comma-separated or JSON array, e.g. Delhi NCR,Mumbai or ["Delhi NCR","Mumbai"]' }
+ *               preferredStates: { type: string, description: 'Comma-separated or JSON array' }
  *               discipline: { type: string }
  *               subcategory: { type: string }
  *               bio: { type: string }
@@ -108,8 +112,12 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *               travelSetting: { type: string, enum: [including, excluding, none] }
  *               travelChargeInr: { type: integer }
  *               stayChargeInr: { type: integer }
- *               cityRates: { type: string, description: 'JSON object string' }
+ *               cityRates: { type: string, description: 'JSON object, e.g. {"Delhi":{"rate":25000,"travel":"not_needed","travel_charge":0,"stay_charge":0}}' }
  *               primaryReel: { type: integer }
+ *               bankAccountHolder: { type: string }
+ *               bankName: { type: string }
+ *               bankAccountNumber: { type: string, description: '9–18 digits' }
+ *               bankIfsc: { type: string, description: '11-char IFSC' }
  *               photo: { type: string, format: binary }
  *               artPhoto: { type: string, format: binary }
  *               faceVideo: { type: string, format: binary }
@@ -125,5 +133,24 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *         description: Not an artist
  */
 router.post("/artist/profile", ...artistOnly, uploadArtistProfile, artistController.saveProfile);
+
+/**
+ * @swagger
+ * /artists/verified:
+ *   get:
+ *     tags: [Artist]
+ *     summary: List verified artists (paginated, flat response for customers)
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+ *     responses:
+ *       200:
+ *         description: Verified artists only
+ */
+router.get("/artists/verified", artistController.listVerifiedArtists);
 
 export default router;
