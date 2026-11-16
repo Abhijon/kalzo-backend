@@ -48,12 +48,46 @@ model CustomerProfile {
 }
 
 model ArtistProfile {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String   @unique @map("user_id") @db.Uuid
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mobileNumber String   @map("mobile_number")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mobileNumber       String   @map("mobile_number")
+
+  // Who you are
+  stageName          String?  @map("stage_name")
+  legalName          String?  @map("legal_name")
+  baseCity           String?  @map("base_city")
+  stateName          String?  @map("state_name")
+  currentCity        String?  @map("current_city")
+  currentState       String?  @map("current_state")
+  preferredCities    String[] @default([]) @map("preferred_cities")
+  preferredStates    String[] @default([]) @map("preferred_states")
+  discipline         String?
+  subcategory        String?
+  bio                String?
+  instagram          String?
+
+  // Pricing
+  rateInr            Int?     @map("rate_inr")
+  pricingUnit        String   @default("hour") @map("pricing_unit")
+  travelSetting      String   @default("including") @map("travel_setting")
+  travelChargeInr    Int      @default(0) @map("travel_charge_inr")
+  stayChargeInr      Int      @default(0) @map("stay_charge_inr")
+  cityRates          Json     @default("{}") @map("city_rates")
+
+  // Media paths (S3 object keys later; local uploads for now)
+  photoPath          String?  @map("photo_path")
+  artPhotoPath       String?  @map("art_photo_path")
+  faceVideoPath      String?  @map("face_video_path")
+  reels              String[] @default([])
+  primaryReel        Int      @default(0) @map("primary_reel")
+
+  // Review / verification
+  status             String   @default("draft")
+  verificationStatus String   @default("not_started") @map("verification_status")
+
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("artist_profiles")
 }
