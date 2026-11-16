@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { VERIFICATION_STATUS } from "../utils/verification";
 
 export type ArtistProfileInput = {
   mobileNumber: string;
@@ -29,10 +30,15 @@ export type ArtistProfileUpdate = {
   faceVideoPath?: string | null;
   reels?: string[];
   primaryReel?: number;
+  bankAccountHolder?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
 };
 
 export const artistProfileSelect = {
   id: true,
+  userId: true,
   mobileNumber: true,
   stageName: true,
   legalName: true,
@@ -57,8 +63,12 @@ export const artistProfileSelect = {
   faceVideoPath: true,
   reels: true,
   primaryReel: true,
-  status: true,
   verificationStatus: true,
+  rejectionReason: true,
+  bankAccountHolder: true,
+  bankName: true,
+  bankAccountNumber: true,
+  bankIfsc: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -85,6 +95,44 @@ export function findProfileByUserId(userId: string) {
   });
 }
 
+export function findProfileById(id: string) {
+  return prisma.artistProfile.findUnique({
+    where: { id },
+    select: {
+      ...artistProfileSelect,
+      user: { select: { id: true, email: true, isActive: true } },
+    },
+  });
+}
+
+const listSelect = {
+  ...artistProfileSelect,
+  user: { select: { id: true, email: true, isActive: true } },
+} as const;
+
+export async function listProfiles(opts: {
+  limit: number;
+  offset: number;
+  verificationStatus?: (typeof VERIFICATION_STATUS)[keyof typeof VERIFICATION_STATUS];
+}) {
+  const where = opts.verificationStatus
+    ? { verificationStatus: opts.verificationStatus }
+    : {};
+
+  const [artists, totalCount] = await Promise.all([
+    prisma.artistProfile.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: opts.offset,
+      take: opts.limit,
+      select: listSelect,
+    }),
+    prisma.artistProfile.count({ where }),
+  ]);
+
+  return { artists, totalCount };
+}
+
 export function updateProfileByUserId(userId: string, data: ArtistProfileUpdate) {
   return prisma.artistProfile.update({
     where: { userId },
@@ -93,13 +141,42 @@ export function updateProfileByUserId(userId: string, data: ArtistProfileUpdate)
   });
 }
 
+/** After multipart submit: ready for admin review (stays unverified until admin acts). */
 export function submitProfileByUserId(userId: string) {
   return prisma.artistProfile.update({
     where: { userId },
     data: {
-      status: "pending_review",
-      verificationStatus: "submitted",
+      verificationStatus: VERIFICATION_STATUS.UNVERIFIED,
+      rejectionReason: null,
     },
     select: artistProfileSelect,
+  });
+}
+
+export function verifyProfileById(id: string) {
+  return prisma.artistProfile.update({
+    where: { id },
+    data: {
+      verificationStatus: VERIFICATION_STATUS.VERIFIED,
+      rejectionReason: null,
+    },
+    select: {
+      ...artistProfileSelect,
+      user: { select: { id: true, email: true, isActive: true } },
+    },
+  });
+}
+
+export function rejectProfileById(id: string, reason: string) {
+  return prisma.artistProfile.update({
+    where: { id },
+    data: {
+      verificationStatus: VERIFICATION_STATUS.REJECTED,
+      rejectionReason: reason,
+    },
+    select: {
+      ...artistProfileSelect,
+      user: { select: { id: true, email: true, isActive: true } },
+    },
   });
 }
