@@ -91,7 +91,10 @@ export function createArtist(email: string, roleId: string, profile: ArtistProfi
 export function findProfileByUserId(userId: string) {
   return prisma.artistProfile.findUnique({
     where: { userId },
-    select: artistProfileSelect,
+    select: {
+      ...artistProfileSelect,
+      user: { select: { id: true, email: true, isActive: true } },
+    },
   });
 }
 
