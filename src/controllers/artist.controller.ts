@@ -4,7 +4,7 @@ import * as artistService from "../services/artist.service";
 import * as authService from "../services/auth.service";
 import * as mediaService from "../services/media.service";
 import * as roleService from "../services/role.service";
-import { toPublicArtist } from "../utils/artistResponse";
+import { toFlatArtist, toPublicArtist } from "../utils/artistResponse";
 import { ApiError } from "../utils/apiError";
 import { markOtpSent, OTP_COOLDOWN_SECONDS } from "../utils/otpCooldown";
 import { paginationMeta, parsePagination } from "../utils/pagination";
@@ -187,10 +187,10 @@ async function requireArtistProfile(userId: string) {
   return profile;
 }
 
-/** GET /artist/profile */
+/** GET /artist/profile — same flat shape as admin get-by-id (submitted POST data). */
 export async function getProfile(req: Request, res: Response) {
   const profile = await requireArtistProfile(req.user!.id);
-  sendSuccess(res, { profile });
+  sendSuccess(res, { profile: toFlatArtist(profile) });
 }
 
 /** GET /artists/verified?page=1&limit=10 — public list of verified artists */
@@ -262,9 +262,11 @@ export async function saveProfile(req: Request, res: Response) {
     reels: reelSaved.map((r) => r.path),
   });
 
-  const profile = await artistService.submitProfileByUserId(userId);
+  await artistService.submitProfileByUserId(userId);
+  const profile = await artistService.findProfileByUserId(userId);
+  if (!profile) throw new ApiError(404, "Artist profile not found");
   sendSuccess(res, {
     message: "Profile submitted for verification.",
-    profile,
+    profile: toFlatArtist(profile),
   });
 }
