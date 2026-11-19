@@ -11,6 +11,7 @@ import { paginationMeta, parsePagination } from "../utils/pagination";
 import { sendSuccess } from "../utils/response";
 import { ROLES } from "../utils/roles";
 import { toPublicUser } from "../utils/user";
+import { assertKycCompleted } from "../utils/kyc";
 import { VERIFICATION_STATUS } from "../utils/verification";
 
 type ArtistSignupBody = {
@@ -182,9 +183,7 @@ export async function signup(req: Request, res: Response) {
 }
 
 async function requireArtistProfile(userId: string) {
-  const profile = await artistService.findProfileByUserId(userId);
-  if (!profile) throw new ApiError(404, "Artist profile not found");
-  return profile;
+  return artistService.ensureProfileByUserId(userId);
 }
 
 /** GET /artist/profile — same flat shape as admin get-by-id (submitted POST data). */
@@ -213,7 +212,8 @@ export async function listVerifiedArtists(req: Request, res: Response) {
  * Fields: profile text + bank details + photo, artPhoto, faceVideo, reels (2–4).
  */
 export async function saveProfile(req: Request, res: Response) {
-  await requireArtistProfile(req.user!.id);
+  const existing = await requireArtistProfile(req.user!.id);
+  assertKycCompleted(existing.kycStatus);
   const userId = req.user!.id;
   const files = (req.files ?? {}) as MulterFiles;
 
@@ -266,7 +266,7 @@ export async function saveProfile(req: Request, res: Response) {
   const profile = await artistService.findProfileByUserId(userId);
   if (!profile) throw new ApiError(404, "Artist profile not found");
   sendSuccess(res, {
-    message: "Profile submitted for verification.",
+    message: "Profile submitted for admin verification.",
     profile: toFlatArtist(profile),
   });
 }

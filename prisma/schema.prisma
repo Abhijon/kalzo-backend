@@ -53,6 +53,13 @@ enum VerificationStatus {
   rejected
 }
 
+enum KycStatus {
+  not_started
+  pending
+  success
+  failed
+}
+
 model ArtistProfile {
   id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId             String             @unique @map("user_id") @db.Uuid
@@ -91,6 +98,16 @@ model ArtistProfile {
   verificationStatus VerificationStatus @default(unverified) @map("verification_status")
   rejectionReason    String?            @map("rejection_reason")
 
+  // Surepass Digilocker KYC (separate from admin verificationStatus)
+  kycStatus          KycStatus          @default(not_started) @map("kyc_status")
+  kycClientId        String?            @map("kyc_client_id")
+  kycVerifiedName    String?            @map("kyc_verified_name")
+  kycMaskedAadhaar   String?            @map("kyc_masked_aadhaar")
+  kycDob             String?            @map("kyc_dob")
+  kycGender          String?            @map("kyc_gender")
+  kycVerifiedAt      DateTime?          @map("kyc_verified_at") @db.Timestamptz(6)
+  kycRaw             Json?              @map("kyc_raw")
+
   // Bank / payout (submitted with profile; returned on admin APIs only)
   bankAccountHolder  String?            @map("bank_account_holder")
   bankName           String?            @map("bank_name")
@@ -100,5 +117,6 @@ model ArtistProfile {
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  @@index([kycClientId])
   @@map("artist_profiles")
 }

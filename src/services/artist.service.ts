@@ -65,6 +65,13 @@ export const artistProfileSelect = {
   primaryReel: true,
   verificationStatus: true,
   rejectionReason: true,
+  kycStatus: true,
+  kycClientId: true,
+  kycVerifiedName: true,
+  kycMaskedAadhaar: true,
+  kycDob: true,
+  kycGender: true,
+  kycVerifiedAt: true,
   bankAccountHolder: true,
   bankName: true,
   bankAccountNumber: true,
@@ -91,6 +98,23 @@ export function createArtist(email: string, roleId: string, profile: ArtistProfi
 export function findProfileByUserId(userId: string) {
   return prisma.artistProfile.findUnique({
     where: { userId },
+    select: {
+      ...artistProfileSelect,
+      user: { select: { id: true, email: true, isActive: true } },
+    },
+  });
+}
+
+/**
+ * ARTIST users always need an artist_profiles row (signup creates it).
+ * Older/test accounts may be missing one — create a stub so KYC/profile work.
+ */
+export async function ensureProfileByUserId(userId: string, mobileNumber = "0000000000") {
+  const existing = await findProfileByUserId(userId);
+  if (existing) return existing;
+
+  return prisma.artistProfile.create({
+    data: { userId, mobileNumber },
     select: {
       ...artistProfileSelect,
       user: { select: { id: true, email: true, isActive: true } },

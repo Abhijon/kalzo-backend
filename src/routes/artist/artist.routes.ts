@@ -62,6 +62,8 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *     tags: [Artist]
  *     summary: Submit artist profile for verification (single multipart form-data)
  *     description: |
+ *       Requires Digilocker KYC (`kycStatus=success`) first —
+ *       POST /artist/kyc/digilocker/initiate then complete.
  *       One request with all text fields plus files.
  *       Files: photo, artPhoto, faceVideo, reels (2–4).
  *       Arrays/objects as JSON strings: preferredCities, preferredStates, cityRates.
