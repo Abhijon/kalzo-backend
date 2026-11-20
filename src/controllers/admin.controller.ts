@@ -4,6 +4,7 @@ import { toFlatArtist } from "../utils/artistResponse";
 import { ApiError } from "../utils/apiError";
 import { paginationMeta, parsePagination } from "../utils/pagination";
 import { sendSuccess } from "../utils/response";
+import { assertKycCompleted } from "../utils/kyc";
 import { VERIFICATION_STATUS } from "../utils/verification";
 
 /** GET /admin/artists?page=1&limit=10 */
@@ -38,6 +39,7 @@ export async function verifyArtist(req: Request, res: Response) {
   if (existing.verificationStatus === VERIFICATION_STATUS.VERIFIED) {
     throw new ApiError(400, "Artist is already verified");
   }
+  assertKycCompleted(existing.kycStatus);
 
   const artist = await artistService.verifyProfileById(existing.id);
   sendSuccess(res, {

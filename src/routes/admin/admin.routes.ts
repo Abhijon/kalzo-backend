@@ -79,6 +79,7 @@ router.get("/admin/artists/:id", ...adminOrArtist, validateParams(artistIdParam)
  *   patch:
  *     tags: [Admin]
  *     summary: Mark artist as verified (visible to customers)
+ *     description: Requires Digilocker KYC (`kycStatus=success`) before admin can verify.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -89,7 +90,7 @@ router.get("/admin/artists/:id", ...adminOrArtist, validateParams(artistIdParam)
  *       200:
  *         description: verificationStatus set to verified
  *       400:
- *         description: Already verified
+ *         description: Already verified, or Digilocker KYC not completed
  *       404:
  *         description: Not found
  */

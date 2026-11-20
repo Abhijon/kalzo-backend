@@ -1,4 +1,4 @@
-import type { VerificationStatus } from "@prisma/client";
+import type { KycStatus, VerificationStatus } from "@prisma/client";
 
 /** Flat artist row for API responses (no nested user object). */
 export type FlatArtist = {
@@ -32,6 +32,13 @@ export type FlatArtist = {
   primaryReel: number;
   verificationStatus: VerificationStatus;
   rejectionReason: string | null;
+  kycStatus: KycStatus;
+  kycClientId: string | null;
+  kycVerifiedName: string | null;
+  kycMaskedAadhaar: string | null;
+  kycDob: string | null;
+  kycGender: string | null;
+  kycVerifiedAt: Date | null;
   bankAccountHolder: string | null;
   bankName: string | null;
   bankAccountNumber: string | null;
@@ -69,6 +76,13 @@ type ProfileWithUser = {
   primaryReel: number;
   verificationStatus: VerificationStatus;
   rejectionReason: string | null;
+  kycStatus: KycStatus;
+  kycClientId: string | null;
+  kycVerifiedName: string | null;
+  kycMaskedAadhaar: string | null;
+  kycDob: string | null;
+  kycGender: string | null;
+  kycVerifiedAt: Date | null;
   bankAccountHolder: string | null;
   bankName: string | null;
   bankAccountNumber: string | null;
@@ -110,6 +124,13 @@ export function toFlatArtist(row: ProfileWithUser): FlatArtist {
     primaryReel: row.primaryReel,
     verificationStatus: row.verificationStatus,
     rejectionReason: row.rejectionReason,
+    kycStatus: row.kycStatus,
+    kycClientId: row.kycClientId,
+    kycVerifiedName: row.kycVerifiedName,
+    kycMaskedAadhaar: row.kycMaskedAadhaar,
+    kycDob: row.kycDob,
+    kycGender: row.kycGender,
+    kycVerifiedAt: row.kycVerifiedAt,
     bankAccountHolder: row.bankAccountHolder,
     bankName: row.bankName,
     bankAccountNumber: row.bankAccountNumber,
@@ -119,7 +140,7 @@ export function toFlatArtist(row: ProfileWithUser): FlatArtist {
   };
 }
 
-/** Public verified list: no bank, face video, or rejection reason. */
+/** Public verified list: no bank, face video, KYC PII, or rejection reason. */
 export function toPublicArtist(row: ProfileWithUser) {
   const flat = toFlatArtist(row);
   const {
@@ -129,6 +150,11 @@ export function toPublicArtist(row: ProfileWithUser) {
     bankName: _bank,
     bankAccountNumber: _acc,
     bankIfsc: _ifsc,
+    kycClientId: _kycClient,
+    kycMaskedAadhaar: _aadhaar,
+    kycDob: _dob,
+    kycGender: _gender,
+    kycVerifiedAt: _kycAt,
     ...publicArtist
   } = flat;
   return publicArtist;
