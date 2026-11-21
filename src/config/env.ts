@@ -41,6 +41,21 @@ const schema = z
       (value) => (value === "" ? undefined : value),
       z.string().url().optional(),
     ),
+    // AWS S3 (artist media: photo, artPhoto, faceVideo, reels)
+    AWS_REGION: z.string().min(1),
+    AWS_ACCESS_KEY_ID: z.string().min(1),
+    AWS_SECRET_ACCESS_KEY: z.string().min(1),
+    S3_BUCKET: z.string().min(1),
+    /** Folder prefix inside the bucket, e.g. artist-profile-images */
+    S3_KEY_PREFIX: z.string().trim().min(1).default("artist-profile-images"),
+    /**
+     * Public base for browser URLs, e.g. https://my-bucket.s3.ap-south-1.amazonaws.com
+     * If omitted, built as https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com
+     */
+    S3_PUBLIC_BASE_URL: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().url().optional(),
+    ),
   })
   .refine((e) => !e.STATIC_OTP_ENABLED || e.STATIC_OTP, {
     message: "STATIC_OTP is required when STATIC_OTP_ENABLED=true",

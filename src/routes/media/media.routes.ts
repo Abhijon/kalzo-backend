@@ -1,5 +1,4 @@
 import { Router } from "express";
-import express from "express";
 import { ApiError } from "../../utils/apiError";
 import { sendSuccess } from "../../utils/response";
 import * as mediaService from "../../services/media.service";
@@ -7,8 +6,8 @@ import * as mediaService from "../../services/media.service";
 const router = Router();
 
 /**
- * GET /media/url?path=artists/{userId}/{file}
- * Returns a localhost (or current host) URL that streams the file from uploads/.
+ * GET /media/url?path=artist-profile-images/{userId}/{file}
+ * Resolves a stored S3 object key to a public S3 URL.
  */
 router.get("/media/url", async (req, res) => {
   const key = mediaService.normalizeObjectKey(String(req.query.path ?? ""));
@@ -17,29 +16,27 @@ router.get("/media/url", async (req, res) => {
   const exists = await mediaService.mediaExists(key);
   if (!exists) throw new ApiError(404, "Media file not found");
 
+  const url = mediaService.publicUrl(key);
   sendSuccess(res, {
     path: key,
-    url: mediaService.publicUrl(req, key),
-    signedUrl: mediaService.publicUrl(req, key),
+    url,
+    signedUrl: url,
   });
 });
 
 /**
- * GET /media/artists/... — serve local uploads (dev stand-in for S3).
- * Path traversal is blocked by express.static root + normalizeObjectKey for /url.
+ * GET /media/* — redirect to the public S3 object URL.
+ * Keeps older /api/v1/media/... links working after the S3 move.
  */
-router.use(
-  "/media",
-  express.static(mediaService.UPLOAD_ROOT, {
-    fallthrough: false,
-    index: false,
-    setHeaders(res) {
-      res.setHeader("Cache-Control", "private, max-age=600");
-      // Vite (different origin/port) needs to load images/videos in <img>/<video>.
-      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-    },
-  }),
-);
+router.get("/media/*objectKey", async (req, res) => {
+  const raw = String(req.params.objectKey ?? "").replace(/^\//, "");
+  const key = mediaService.normalizeObjectKey(decodeURIComponent(raw));
+  if (!key) throw new ApiError(400, "Invalid media path");
+
+  const exists = await mediaService.mediaExists(key);
+  if (!exists) throw new ApiError(404, "Media file not found");
+
+  res.redirect(302, mediaService.publicUrl(key));
+});
 
 export default router;
