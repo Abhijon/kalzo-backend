@@ -17,7 +17,12 @@ export async function signup(req: Request, res: Response) {
   const email = body.email.trim().toLowerCase();
 
   const existing = await authService.findUserByEmail(email);
-  if (existing) throw new ApiError(409, "Email is already registered");
+  if (existing) {
+    throw new ApiError(
+      409,
+      "An account with this email already exists. Please log in, or use a different email to sign up.",
+    );
+  }
 
   const role = await roleService.findRoleByName(ROLES.CUSTOMER);
   if (!role) throw new ApiError(500, "Customer role is missing from the roles table");

@@ -1,9 +1,11 @@
 import { randomUUID } from "crypto";
-import { access, mkdir, writeFile } from "fs/promises";
-import path from "path";
-import type { Request } from "express";
-
-export const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+import { env } from "../config/env";
+import {
+  s3DeleteObject,
+  s3ObjectExists,
+  s3ObjectUrl,
+  s3PutObject,
+} from "../lib/s3";
 
 /** Extension from mime; falls back to bin. */
 function extForMime(mime: string): string {
@@ -31,51 +33,58 @@ export function normalizeObjectKey(input: string): string {
   if (!cleaned || cleaned.includes("\0") || cleaned.split("/").some((p) => p === ".." || p === "")) {
     return "";
   }
-  const absolute = path.resolve(UPLOAD_ROOT, cleaned);
-  const rootWithSep = UPLOAD_ROOT.endsWith(path.sep) ? UPLOAD_ROOT : UPLOAD_ROOT + path.sep;
-  if (absolute !== UPLOAD_ROOT && !absolute.startsWith(rootWithSep)) return "";
   return cleaned;
 }
 
-export function absolutePathForKey(key: string): string | null {
+/** Absolute browser URL for an S3 object key. */
+export function publicUrl(key: string): string {
   const safe = normalizeObjectKey(key);
-  if (!safe) return null;
-  return path.join(UPLOAD_ROOT, safe);
+  if (!safe) return "";
+  return s3ObjectUrl(safe);
 }
 
 export async function mediaExists(key: string): Promise<boolean> {
-  const absolute = absolutePathForKey(key);
-  if (!absolute) return false;
-  try {
-    await access(absolute);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Absolute browser URL for a media object key (local uploads). */
-export function publicUrl(req: Request, key: string): string {
   const safe = normalizeObjectKey(key);
-  const host = req.get("host") || "localhost:8000";
-  const proto = req.protocol || "http";
-  const encoded = safe
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
-  return `${proto}://${host}/api/v1/media/${encoded}`;
+  if (!safe) return false;
+  return s3ObjectExists(safe);
 }
 
 /**
- * Save an upload under uploads/ with an S3-ready object key:
- * artists/{userId}/{uuid}.{ext}
- * Swap writeFile for S3 PutObject later; keep returning the same `path` shape.
+ * Upload artist media to S3.
+ * Key shape: {S3_KEY_PREFIX}/{userId}/{uuid}.{ext}
+ * e.g. artist-profile-images/uuid/uuid.jpg
  */
 export async function saveArtistMedia(userId: string, file: Express.Multer.File) {
   const ext = extForMime(file.mimetype);
-  const objectKey = `artists/${userId}/${randomUUID()}.${ext}`;
-  const absolute = path.join(UPLOAD_ROOT, objectKey);
-  await mkdir(path.dirname(absolute), { recursive: true });
-  await writeFile(absolute, file.buffer);
-  return { path: objectKey, mimeType: file.mimetype, size: file.size };
+  const prefix = env.S3_KEY_PREFIX.replace(/^\/+|\/+$/g, "");
+  const objectKey = `${prefix}/${userId}/${randomUUID()}.${ext}`;
+
+  await s3PutObject({
+    key: objectKey,
+    body: file.buffer,
+    contentType: file.mimetype.split(";")[0]?.trim() || "application/octet-stream",
+  });
+
+  return {
+    path: objectKey,
+    url: publicUrl(objectKey),
+    mimeType: file.mimetype,
+    size: file.size,
+  };
+}
+
+/** Delete one object from S3 (no-op / ignore missing). */
+export async function deleteMedia(key: string | null | undefined): Promise<void> {
+  const safe = normalizeObjectKey(key ?? "");
+  if (!safe) return;
+  try {
+    await s3DeleteObject(safe);
+  } catch {
+    // Best-effort cleanup; do not fail the request if an old object is already gone.
+  }
+}
+
+/** Delete many object keys (e.g. previous reels). */
+export async function deleteMediaMany(keys: Array<string | null | undefined>): Promise<void> {
+  await Promise.all(keys.map((key) => deleteMedia(key)));
 }

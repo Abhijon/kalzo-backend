@@ -1,8 +1,11 @@
+import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
+import type { ZodType } from "zod";
 import { z } from "zod";
 import * as artistController from "../../controllers/artist.controller";
 import { authenticate, authorize } from "../../middleware/common.middleware";
 import { uploadArtistProfile } from "../../middleware/multer.middleware";
+import { ApiError } from "../../utils/apiError";
 import { ROLES } from "../../utils/roles";
 import { validate } from "../../utils/validate";
 
@@ -12,6 +15,22 @@ const artistSignupSchema = z.object({
   email: z.email(),
   mobileNumber: z.string().regex(/^\d{10}$/, "Mobile number must be 10 digits"),
 });
+
+const artistIdParam = z.object({
+  id: z.uuid("Artist id must be a valid UUID"),
+});
+
+function validateParams(schema: ZodType) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.params);
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      throw new ApiError(400, issue?.message ?? "Invalid path params");
+    }
+    Object.assign(req.params, result.data);
+    next();
+  };
+}
 
 const artistOnly = [authenticate, authorize(ROLES.ARTIST)] as const;
 
@@ -32,7 +51,7 @@ const artistOnly = [authenticate, authorize(ROLES.ARTIST)] as const;
  *       400:
  *         description: Invalid input
  *       409:
- *         description: Email already registered
+ *         description: Email already exists — use login or a different email
  */
 router.post("/artist-signup", validate(artistSignupSchema), artistController.signup);
 
@@ -154,5 +173,27 @@ router.post("/artist/profile", ...artistOnly, uploadArtistProfile, artistControl
  *         description: Verified artists only
  */
 router.get("/artists/verified", artistController.listVerifiedArtists);
+
+/**
+ * @swagger
+ * /artists/{id}:
+ *   get:
+ *     tags: [Artist]
+ *     summary: Get one verified artist by id (public, no auth)
+ *     description: Returns public artist details with media URLs, including live face video. Bank and KYC PII are omitted.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Artist detail
+ *       400:
+ *         description: Invalid artist id
+ *       404:
+ *         description: Artist not found or not verified
+ */
+router.get("/artists/:id", validateParams(artistIdParam), artistController.getArtistById);
 
 export default router;

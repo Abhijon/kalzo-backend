@@ -1,4 +1,11 @@
 import type { KycStatus, VerificationStatus } from "@prisma/client";
+import { publicUrl } from "../services/media.service";
+
+function mediaUrl(key: string | null | undefined): string | null {
+  if (!key) return null;
+  const url = publicUrl(key);
+  return url || null;
+}
 
 /** Flat artist row for API responses (no nested user object). */
 export type FlatArtist = {
@@ -25,10 +32,16 @@ export type FlatArtist = {
   travelChargeInr: number;
   stayChargeInr: number;
   cityRates: unknown;
+  /** S3 object key */
   photoPath: string | null;
   artPhotoPath: string | null;
   faceVideoPath: string | null;
   reels: string[];
+  /** Public S3 URLs (for <img>/<video> src) */
+  photoUrl: string | null;
+  artPhotoUrl: string | null;
+  faceVideoUrl: string | null;
+  reelUrls: string[];
   primaryReel: number;
   verificationStatus: VerificationStatus;
   rejectionReason: string | null;
@@ -121,6 +134,10 @@ export function toFlatArtist(row: ProfileWithUser): FlatArtist {
     artPhotoPath: row.artPhotoPath,
     faceVideoPath: row.faceVideoPath,
     reels: row.reels,
+    photoUrl: mediaUrl(row.photoPath),
+    artPhotoUrl: mediaUrl(row.artPhotoPath),
+    faceVideoUrl: mediaUrl(row.faceVideoPath),
+    reelUrls: (row.reels ?? []).map((key) => mediaUrl(key)).filter((u): u is string => Boolean(u)),
     primaryReel: row.primaryReel,
     verificationStatus: row.verificationStatus,
     rejectionReason: row.rejectionReason,
@@ -145,6 +162,7 @@ export function toPublicArtist(row: ProfileWithUser) {
   const flat = toFlatArtist(row);
   const {
     faceVideoPath: _face,
+    faceVideoUrl: _faceUrl,
     rejectionReason: _reason,
     bankAccountHolder: _holder,
     bankName: _bank,
@@ -158,4 +176,23 @@ export function toPublicArtist(row: ProfileWithUser) {
     ...publicArtist
   } = flat;
   return publicArtist;
+}
+
+/** Public artist detail (e.g. GET /artists/:id): same as list, plus live face video. */
+export function toPublicArtistDetail(row: ProfileWithUser) {
+  const flat = toFlatArtist(row);
+  const {
+    rejectionReason: _reason,
+    bankAccountHolder: _holder,
+    bankName: _bank,
+    bankAccountNumber: _acc,
+    bankIfsc: _ifsc,
+    kycClientId: _kycClient,
+    kycMaskedAadhaar: _aadhaar,
+    kycDob: _dob,
+    kycGender: _gender,
+    kycVerifiedAt: _kycAt,
+    ...detail
+  } = flat;
+  return detail;
 }

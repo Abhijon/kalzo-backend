@@ -38,7 +38,7 @@ const customerSignupSchema = z.object({
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
  *       409:
- *         description: Email already registered
+ *         description: Email already exists — use login or a different email
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }

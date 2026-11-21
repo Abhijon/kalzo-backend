@@ -4,7 +4,7 @@ import * as artistService from "../services/artist.service";
 import * as authService from "../services/auth.service";
 import * as mediaService from "../services/media.service";
 import * as roleService from "../services/role.service";
-import { toFlatArtist, toPublicArtist } from "../utils/artistResponse";
+import { toFlatArtist, toPublicArtist, toPublicArtistDetail } from "../utils/artistResponse";
 import { ApiError } from "../utils/apiError";
 import { markOtpSent, OTP_COOLDOWN_SECONDS } from "../utils/otpCooldown";
 import { paginationMeta, parsePagination } from "../utils/pagination";
@@ -159,7 +159,12 @@ export async function signup(req: Request, res: Response) {
   const email = body.email.trim().toLowerCase();
 
   const existing = await authService.findUserByEmail(email);
-  if (existing) throw new ApiError(409, "Email is already registered");
+  if (existing) {
+    throw new ApiError(
+      409,
+      "An account with this email already exists. Please log in, or use a different email to sign up.",
+    );
+  }
 
   const role = await roleService.findRoleByName(ROLES.ARTIST);
   if (!role) throw new ApiError(500, "Artist role is missing from the roles table");
@@ -207,6 +212,16 @@ export async function listVerifiedArtists(req: Request, res: Response) {
   });
 }
 
+/** GET /artists/:id — public artist detail (verified only; includes live face video). */
+export async function getArtistById(req: Request, res: Response) {
+  const artist = await artistService.findProfileById(String(req.params.id));
+  if (!artist || artist.verificationStatus !== VERIFICATION_STATUS.VERIFIED) {
+    throw new ApiError(404, "Artist not found");
+  }
+
+  sendSuccess(res, { artist: toPublicArtistDetail(artist) });
+}
+
 /**
  * POST /artist/profile — one multipart form-data submit.
  * Fields: profile text + bank details + photo, artPhoto, faceVideo, reels (2–4).
@@ -252,6 +267,13 @@ export async function saveProfile(req: Request, res: Response) {
     ...reelFiles.map((f) => mediaService.saveArtistMedia(userId, f)),
   ]);
 
+  const previousKeys = [
+    existing.photoPath,
+    existing.artPhotoPath,
+    existing.faceVideoPath,
+    ...(existing.reels ?? []),
+  ];
+
   await artistService.updateProfileByUserId(userId, {
     ...data,
     travelChargeInr: data.travelSetting === "excluding" ? data.travelChargeInr : 0,
@@ -261,6 +283,9 @@ export async function saveProfile(req: Request, res: Response) {
     faceVideoPath: faceSaved.path,
     reels: reelSaved.map((r) => r.path),
   });
+
+  // Best-effort: remove previous S3 objects after DB update succeeds
+  await mediaService.deleteMediaMany(previousKeys);
 
   await artistService.submitProfileByUserId(userId);
   const profile = await artistService.findProfileByUserId(userId);
