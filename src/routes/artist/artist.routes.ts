@@ -172,6 +172,68 @@ router.post("/artist/profile", ...artistOnly, uploadArtistProfile, artistControl
 
 /**
  * @swagger
+ * /artist/profile:
+ *   patch:
+ *     tags: [Artist]
+ *     summary: Update an existing artist profile
+ *     description: |
+ *       Partial update for bio, pricing, locations, travel settings, and media.
+ *       All fields are optional. Media keys must be presigned S3 keys from /media/uploads.
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stageName: { type: string }
+ *               legalName: { type: string }
+ *               baseCity: { type: string }
+ *               stateName: { type: string }
+ *               currentCity: { type: string }
+ *               currentState: { type: string }
+ *               preferredCities:
+ *                 type: array
+ *                 items: { type: string }
+ *               preferredStates:
+ *                 type: array
+ *                 items: { type: string }
+ *               discipline: { type: string }
+ *               subcategory: { type: string }
+ *               bio: { type: string }
+ *               instagram: { type: string }
+ *               rateInr: { type: integer }
+ *               pricingUnit: { type: string, enum: [hour, event, plate] }
+ *               travelSetting: { type: string, enum: [including, excluding, none] }
+ *               travelChargeInr: { type: integer }
+ *               stayChargeInr: { type: integer }
+ *               cityRates: { type: object }
+ *               primaryReel: { type: integer }
+ *               bankAccountHolder: { type: string }
+ *               bankName: { type: string }
+ *               bankAccountNumber: { type: string }
+ *               bankIfsc: { type: string }
+ *               photoPath: { type: string, description: S3 key }
+ *               artPhotoPath: { type: string, description: S3 key }
+ *               faceVideoPath: { type: string, description: S3 key }
+ *               reels:
+ *                 type: array
+ *                 items: { type: string }
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       400:
+ *         description: Invalid fields or media keys
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Profile not found
+ */
+router.patch("/artist/profile", ...artistOnly, artistController.updateProfile);
+
+/**
+ * @swagger
  * /artists/verified:
  *   get:
  *     tags: [Artist]
