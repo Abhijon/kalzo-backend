@@ -75,6 +75,54 @@ const profileFormSchema = z.object({
     .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid IFSC code"),
 });
 
+/** Schema for partial updates to an existing artist profile. */
+const profileUpdateSchema = z.object({
+  stageName: z.string().trim().min(1).max(100).optional(),
+  legalName: z.string().trim().min(2).max(100).optional(),
+  baseCity: z.string().trim().min(1).max(100).optional(),
+  stateName: z.string().trim().min(1).max(100).optional(),
+  currentCity: z.string().trim().min(1).max(100).optional(),
+  currentState: z.string().trim().min(1).max(100).optional(),
+  preferredCities: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  preferredStates: z.array(z.string().trim().min(1).max(100)).max(20).optional(),
+  discipline: z.string().trim().min(1).max(100).optional(),
+  subcategory: z.string().trim().min(1).max(100).optional(),
+  bio: z.string().trim().min(1).max(2000).optional(),
+  instagram: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(
+      (v) => !v || /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9_.]+\/?$/.test(v),
+      "Use your Instagram profile URL",
+    )
+    .optional(),
+  rateInr: z.coerce.number().int().min(1).max(100000).optional(),
+  pricingUnit: z.enum(["hour", "event", "plate"]).optional(),
+  travelSetting: z.enum(["including", "excluding", "none"]).optional(),
+  travelChargeInr: z.coerce.number().int().min(0).max(500000).optional(),
+  stayChargeInr: z.coerce.number().int().min(0).max(500000).optional(),
+  cityRates: z.record(z.string().max(100), cityRateSchema).optional(),
+  primaryReel: z.coerce.number().int().min(0).max(3).optional(),
+  bankAccountHolder: z.string().trim().min(2).max(100).optional(),
+  bankName: z.string().trim().min(2).max(100).optional(),
+  bankAccountNumber: z
+    .string()
+    .trim()
+    .regex(/^\d{9,18}$/, "Account number must be 9–18 digits")
+    .optional(),
+  bankIfsc: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Enter a valid IFSC code")
+    .optional(),
+  photoPath: z.string().trim().nullable().optional(),
+  artPhotoPath: z.string().trim().nullable().optional(),
+  faceVideoPath: z.string().trim().nullable().optional(),
+  reels: z.array(z.string().trim()).min(2).max(4).optional(),
+});
+
 /** Swagger/multipart sometimes uses curly quotes. */
 function normalizeFormText(raw: string): string {
   return raw
@@ -358,5 +406,125 @@ export async function saveProfile(req: Request, res: Response) {
   sendSuccess(res, {
     message: "Profile submitted for admin verification.",
     profile: toFlatArtist(profile),
+  });
+}
+
+/**
+ * PATCH /artist/profile — partial update to an existing profile.
+ * Allows updating bio, pricing, locations, travel settings, and media.
+ */
+export async function updateProfile(req: Request, res: Response) {
+  const userId = req.user!.id;
+  const existing = await requireArtistProfile(userId);
+  if (!existing) {
+    throw new ApiError(404, "Artist profile not found");
+  }
+
+  // Pre-process fields if present
+  const rawBody: Record<string, unknown> = { ...req.body };
+  if ("preferredCities" in req.body && req.body.preferredCities !== undefined) {
+    rawBody.preferredCities = parseStringList(req.body.preferredCities, "preferredCities");
+  }
+  if ("preferredStates" in req.body && req.body.preferredStates !== undefined) {
+    rawBody.preferredStates = parseStringList(req.body.preferredStates, "preferredStates", []);
+  }
+  if ("cityRates" in req.body && req.body.cityRates !== undefined) {
+    rawBody.cityRates = parseCityRates(req.body.cityRates);
+  }
+  if ("reels" in req.body && req.body.reels !== undefined) {
+    rawBody.reels = Array.isArray(req.body.reels)
+      ? (req.body.reels as unknown[]).map((k) => String(k).trim()).filter(Boolean)
+      : parseStringList(req.body.reels, "reels", []);
+  }
+
+  if (rawBody.photoPath === "") rawBody.photoPath = null;
+  if (rawBody.artPhotoPath === "") rawBody.artPhotoPath = null;
+  if (rawBody.faceVideoPath === "") rawBody.faceVideoPath = null;
+
+  // Strip masked bank fields so they don't overwrite valid stored bank details
+  if (
+    typeof rawBody.bankAccountNumber === "string" &&
+    (rawBody.bankAccountNumber.includes("*") || rawBody.bankAccountNumber.includes("•"))
+  ) {
+    delete rawBody.bankAccountNumber;
+  }
+  if (
+    typeof rawBody.bankIfsc === "string" &&
+    (rawBody.bankIfsc.includes("*") || rawBody.bankIfsc.includes("•"))
+  ) {
+    delete rawBody.bankIfsc;
+  }
+
+  const parsed = profileUpdateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new ApiError(400, issue?.message ?? "Invalid profile update fields");
+  }
+
+  const data = parsed.data;
+  const oldKeysToDelete: string[] = [];
+  const keysToVerify: string[] = [];
+
+  if ("photoPath" in data && data.photoPath !== undefined && data.photoPath !== existing.photoPath) {
+    if (data.photoPath) keysToVerify.push(data.photoPath);
+    if (existing.photoPath) oldKeysToDelete.push(existing.photoPath);
+  }
+  if ("artPhotoPath" in data && data.artPhotoPath !== undefined && data.artPhotoPath !== existing.artPhotoPath) {
+    if (data.artPhotoPath) keysToVerify.push(data.artPhotoPath);
+    if (existing.artPhotoPath) oldKeysToDelete.push(existing.artPhotoPath);
+  }
+  if ("faceVideoPath" in data && data.faceVideoPath !== undefined && data.faceVideoPath !== existing.faceVideoPath) {
+    if (data.faceVideoPath) keysToVerify.push(data.faceVideoPath);
+    if (existing.faceVideoPath) oldKeysToDelete.push(existing.faceVideoPath);
+  }
+  if (data.reels) {
+    for (const r of data.reels) {
+      if (!existing.reels?.includes(r)) {
+        keysToVerify.push(r);
+      }
+    }
+    for (const oldR of existing.reels ?? []) {
+      if (!data.reels.includes(oldR)) {
+        oldKeysToDelete.push(oldR);
+      }
+    }
+  }
+
+  if (keysToVerify.length > 0) {
+    await mediaService.assertOwnedMediaKeysExist(userId, keysToVerify);
+  }
+
+  const activeReelCount = data.reels ? data.reels.length : (existing.reels?.length ?? 0);
+  let safePrimaryReel = data.primaryReel;
+  if (safePrimaryReel != null && activeReelCount > 0) {
+    if (safePrimaryReel >= activeReelCount) {
+      safePrimaryReel = Math.max(0, activeReelCount - 1);
+    }
+  }
+
+  const travelSetting = data.travelSetting ?? existing.travelSetting;
+  const updatePayload: artistService.ArtistProfileUpdate = {
+    ...data,
+    primaryReel: safePrimaryReel,
+    travelChargeInr:
+      travelSetting === "excluding"
+        ? (data.travelChargeInr ?? existing.travelChargeInr)
+        : 0,
+    stayChargeInr:
+      travelSetting === "excluding"
+        ? (data.stayChargeInr ?? existing.stayChargeInr)
+        : 0,
+  };
+
+  await artistService.updateProfileByUserId(userId, updatePayload);
+
+  if (oldKeysToDelete.length > 0) {
+    await mediaService.deleteMediaMany(oldKeysToDelete);
+  }
+
+  const updated = await artistService.findProfileByUserId(userId);
+  sendSuccess(res, {
+    message: "Profile updated successfully.",
+    profile: toFlatArtist(updated!),
   });
 }

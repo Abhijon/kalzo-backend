@@ -32,10 +32,11 @@ function extForMime(mime: string): string {
  * Returns "" when the key is unsafe or empty.
  */
 export function normalizeObjectKey(input: string): string {
-  const cleaned = String(input || "")
+  let cleaned = String(input || "")
     .replace(/\\/g, "/")
-    .replace(/^\/+/, "")
     .trim();
+  cleaned = cleaned.replace(/^https?:\/\/[^/]+\//, "");
+  cleaned = cleaned.replace(/^\/+/, "").trim();
   if (!cleaned || cleaned.includes("\0") || cleaned.split("/").some((p) => p === ".." || p === "")) {
     return "";
   }
@@ -74,7 +75,7 @@ export async function assertOwnedMediaKeysExist(
   keys: string[],
 ): Promise<string[]> {
   const safeKeys = keys.map((k) => assertOwnedMediaKey(userId, k));
-  const results = await Promise.all(safeKeys.map((k) => mediaExists(k)));
+  const results = await Promise.all(safeKeys.map((k) => mediaExists(k).catch(() => false)));
   const missing = safeKeys.filter((_, i) => !results[i]);
   if (missing.length) {
     throw new ApiError(400, "One or more media files were not found in storage");

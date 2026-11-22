@@ -74,6 +74,7 @@ export async function s3ObjectExists(key: string): Promise<boolean> {
       ?.httpStatusCode;
     const name = (err as { name?: string })?.name;
     if (status === 404 || name === "NotFound" || name === "NoSuchKey") return false;
+    if (status === 403) return false;
     throw err;
   }
 }
@@ -146,10 +147,14 @@ export async function s3CompleteMultipartUpload(input: {
         Parts: input.parts
           .slice()
           .sort((a, b) => a.partNumber - b.partNumber)
-          .map((p) => ({
-            PartNumber: p.partNumber,
-            ETag: p.etag,
-          })),
+          .map((p) => {
+            const raw = String(p.etag ?? "").trim();
+            const etag = raw.startsWith('"') && raw.endsWith('"') ? raw : `"${raw.replace(/^"|"$/g, "")}"`;
+            return {
+              PartNumber: p.partNumber,
+              ETag: etag,
+            };
+          }),
       },
     }),
   );
