@@ -81,7 +81,7 @@ const artistProfileUploader = multer({
   },
 });
 /** Single multipart submit: text fields + photo, artPhoto, faceVideo, reels[] */
-export const uploadArtistProfile = withMulterErrors(
+const uploadArtistProfileFiles = withMulterErrors(
   artistProfileUploader.fields([
     { name: "photo", maxCount: 1 },
     { name: "artPhoto", maxCount: 1 },
@@ -89,3 +89,12 @@ export const uploadArtistProfile = withMulterErrors(
     { name: "reels", maxCount: 4 },
   ]),
 );
+
+/** Run multer only for multipart; JSON profile submits (S3 keys) skip it. */
+export const uploadArtistProfile: RequestHandler = (req, res, next) => {
+  const ct = String(req.headers["content-type"] ?? "");
+  if (ct.includes("multipart/form-data")) {
+    return uploadArtistProfileFiles(req, res, next);
+  }
+  next();
+};

@@ -1,0 +1,27 @@
+---
+description: Page/limit pagination for list APIs that return many rows
+globs: src/**/*.{ts,js}
+alwaysApply: false
+---
+
+# List API pagination
+
+Any endpoint that returns a potentially long collection must use page/limit pagination.
+
+## Pattern (match existing code)
+
+1. Parse with `parsePagination(req.query)` from `src/utils/pagination.ts`
+2. Service returns `{ items, totalCount }` using Prisma `skip`/`take` + `count` in parallel
+3. Response includes `pagination: paginationMeta(totalCount, q)` alongside the list
+4. Document `page` and `limit` query params in Swagger (`page` default 1, `limit` default 10, max 100)
+
+## Reference implementations
+
+- `GET /artists/verified` — `artist.controller.listVerifiedArtists`
+- `GET /bookings` — `booking.controller.listMyBookings`
+- `GET /artist/bookings` — `booking.controller.listArtistBookings` (also supports filters like `status`)
+
+## Do not
+
+- Return unbounded `findMany` lists for bookings, artists, admin tables, or similar
+- Invent a different pagination shape (`offset` in the public query, cursor, etc.) unless explicitly required

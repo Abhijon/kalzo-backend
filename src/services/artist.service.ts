@@ -141,10 +141,50 @@ export async function listProfiles(opts: {
   limit: number;
   offset: number;
   verificationStatus?: (typeof VERIFICATION_STATUS)[keyof typeof VERIFICATION_STATUS];
+  discipline?: string;
+  subcategory?: string;
+  city?: string;
+  maxRate?: number;
+  /** Calendar date → filter artists whose recurring weekday is active that day. */
+  date?: Date;
+  weekday?: number;
 }) {
-  const where = opts.verificationStatus
-    ? { verificationStatus: opts.verificationStatus }
-    : {};
+  const and: Prisma.ArtistProfileWhereInput[] = [];
+
+  if (opts.verificationStatus) {
+    and.push({ verificationStatus: opts.verificationStatus });
+  }
+  if (opts.discipline) {
+    and.push({ discipline: { equals: opts.discipline, mode: "insensitive" } });
+  }
+  if (opts.subcategory) {
+    and.push({ subcategory: { equals: opts.subcategory, mode: "insensitive" } });
+  }
+  if (opts.maxRate != null) {
+    and.push({ rateInr: { lte: opts.maxRate } });
+  }
+  if (opts.city) {
+    const city = opts.city;
+    and.push({
+      OR: [
+        { baseCity: { equals: city, mode: "insensitive" } },
+        { currentCity: { equals: city, mode: "insensitive" } },
+        { preferredCities: { has: city } },
+      ],
+    });
+  }
+  const weekday =
+    opts.weekday ??
+    (opts.date ? opts.date.getUTCDay() : undefined);
+  if (weekday != null) {
+    and.push({
+      availabilityWeekdays: {
+        some: { weekday, isActive: true },
+      },
+    });
+  }
+
+  const where: Prisma.ArtistProfileWhereInput = and.length ? { AND: and } : {};
 
   const [artists, totalCount] = await Promise.all([
     prisma.artistProfile.findMany({

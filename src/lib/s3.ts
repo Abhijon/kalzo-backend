@@ -1,10 +1,15 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env";
 
 export const s3 = new S3Client({
@@ -79,6 +84,86 @@ export async function s3GetObject(key: string) {
     new GetObjectCommand({
       Bucket: env.S3_BUCKET,
       Key: key,
+    }),
+  );
+}
+
+/** Presigned PUT for a whole object (files ≤ part size). */
+export async function s3PresignPutObject(input: {
+  key: string;
+  contentType: string;
+  expiresIn: number;
+}): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: env.S3_BUCKET,
+    Key: input.key,
+    ContentType: input.contentType,
+  });
+  return getSignedUrl(s3, command, { expiresIn: input.expiresIn });
+}
+
+export async function s3CreateMultipartUpload(input: {
+  key: string;
+  contentType: string;
+}): Promise<{ uploadId: string }> {
+  const out = await s3.send(
+    new CreateMultipartUploadCommand({
+      Bucket: env.S3_BUCKET,
+      Key: input.key,
+      ContentType: input.contentType,
+    }),
+  );
+  if (!out.UploadId) throw new Error("S3 CreateMultipartUpload returned no UploadId");
+  return { uploadId: out.UploadId };
+}
+
+export async function s3PresignUploadPart(input: {
+  key: string;
+  uploadId: string;
+  partNumber: number;
+  expiresIn: number;
+}): Promise<string> {
+  const command = new UploadPartCommand({
+    Bucket: env.S3_BUCKET,
+    Key: input.key,
+    UploadId: input.uploadId,
+    PartNumber: input.partNumber,
+  });
+  return getSignedUrl(s3, command, { expiresIn: input.expiresIn });
+}
+
+export async function s3CompleteMultipartUpload(input: {
+  key: string;
+  uploadId: string;
+  parts: Array<{ partNumber: number; etag: string }>;
+}): Promise<void> {
+  await s3.send(
+    new CompleteMultipartUploadCommand({
+      Bucket: env.S3_BUCKET,
+      Key: input.key,
+      UploadId: input.uploadId,
+      MultipartUpload: {
+        Parts: input.parts
+          .slice()
+          .sort((a, b) => a.partNumber - b.partNumber)
+          .map((p) => ({
+            PartNumber: p.partNumber,
+            ETag: p.etag,
+          })),
+      },
+    }),
+  );
+}
+
+export async function s3AbortMultipartUpload(input: {
+  key: string;
+  uploadId: string;
+}): Promise<void> {
+  await s3.send(
+    new AbortMultipartUploadCommand({
+      Bucket: env.S3_BUCKET,
+      Key: input.key,
+      UploadId: input.uploadId,
     }),
   );
 }

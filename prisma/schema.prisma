@@ -24,6 +24,7 @@ model User {
   isActive        Boolean          @default(false) @map("is_active")
   customerProfile CustomerProfile?
   artistProfile   ArtistProfile?
+  bookings        Booking[]
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -114,9 +115,90 @@ model ArtistProfile {
   bankAccountNumber  String?            @map("bank_account_number")
   bankIfsc           String?            @map("bank_ifsc")
 
+  availabilityWeekdays ArtistAvailabilityWeekday[]
+  bookings             Booking[]
+
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([kycClientId])
   @@map("artist_profiles")
+}
+
+model ArtForm {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type      String   @unique
+  subtypes  String[] @default([])
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("art_forms")
+}
+
+model LocationState {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String         @unique
+  sortOrder Int            @default(0) @map("sort_order")
+  cities    LocationCity[]
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("location_states")
+}
+
+model LocationCity {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  stateId   String        @map("state_id") @db.Uuid
+  state     LocationState @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([stateId, name])
+  @@index([name])
+  @@map("location_cities")
+}
+
+/// Recurring weekly availability — same Mon–Sun pattern every week.
+/// weekday: 0=Sunday … 6=Saturday (matches JS Date#getUTCDay / getDay).
+model ArtistAvailabilityWeekday {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistProfileId String        @map("artist_profile_id") @db.Uuid
+  artist          ArtistProfile @relation(fields: [artistProfileId], references: [id], onDelete: Cascade)
+  weekday         Int
+  isActive        Boolean       @default(false) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([artistProfileId, weekday])
+  @@index([weekday, isActive])
+  @@map("artist_availability_weekdays")
+}
+
+enum BookingStatus {
+  pending
+  accepted
+  rejected
+  job_started
+  completed
+}
+
+model Booking {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerUserId  String        @map("customer_user_id") @db.Uuid
+  customer        User          @relation(fields: [customerUserId], references: [id], onDelete: Cascade)
+  artistProfileId String        @map("artist_profile_id") @db.Uuid
+  artist          ArtistProfile @relation(fields: [artistProfileId], references: [id], onDelete: Cascade)
+  eventDate       DateTime      @map("event_date") @db.Date
+  address         String
+  guests          String?
+  note            String?
+  /// Quoted amount only — payment not required yet
+  amountInr       Int           @default(0) @map("amount_inr")
+  status          BookingStatus @default(pending)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([customerUserId])
+  @@index([artistProfileId])
+  @@index([status])
+  @@map("bookings")
 }
