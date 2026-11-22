@@ -79,19 +79,17 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  * /artist/profile:
  *   post:
  *     tags: [Artist]
- *     summary: Submit artist profile for verification (single multipart form-data)
+ *     summary: Submit artist profile for verification
  *     description: |
- *       Requires Digilocker KYC (`kycStatus=success`) first —
- *       POST /artist/kyc/digilocker/initiate then complete.
- *       One request with all text fields plus files.
- *       Files: photo, artPhoto, faceVideo, reels (2–4).
- *       Arrays/objects as JSON strings: preferredCities, preferredStates, cityRates.
- *       Media is stored locally for now; path shape is S3-ready.
+ *       Requires Digilocker KYC (`kycStatus=success`) first.
+ *       Preferred: upload media via POST /media/uploads (presigned S3), then
+ *       send application/json with photoPath, artPhotoPath, faceVideoPath, reels[].
+ *       Legacy: multipart/form-data with binary files still works.
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
  *       content:
- *         multipart/form-data:
+ *         application/json:
  *           schema:
  *             type: object
  *             required:
@@ -111,9 +109,9 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *               - bankName
  *               - bankAccountNumber
  *               - bankIfsc
- *               - photo
- *               - artPhoto
- *               - faceVideo
+ *               - photoPath
+ *               - artPhotoPath
+ *               - faceVideoPath
  *               - reels
  *             properties:
  *               stageName: { type: string }
@@ -122,8 +120,12 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *               stateName: { type: string }
  *               currentCity: { type: string }
  *               currentState: { type: string }
- *               preferredCities: { type: string, description: 'Comma-separated or JSON array, e.g. Delhi NCR,Mumbai or ["Delhi NCR","Mumbai"]' }
- *               preferredStates: { type: string, description: 'Comma-separated or JSON array' }
+ *               preferredCities:
+ *                 type: array
+ *                 items: { type: string }
+ *               preferredStates:
+ *                 type: array
+ *                 items: { type: string }
  *               discipline: { type: string }
  *               subcategory: { type: string }
  *               bio: { type: string }
@@ -133,16 +135,29 @@ router.get("/artist/profile", ...artistOnly, artistController.getProfile);
  *               travelSetting: { type: string, enum: [including, excluding, none] }
  *               travelChargeInr: { type: integer }
  *               stayChargeInr: { type: integer }
- *               cityRates: { type: string, description: 'JSON object, e.g. {"Delhi":{"rate":25000,"travel":"not_needed","travel_charge":0,"stay_charge":0}}' }
+ *               cityRates: { type: object }
  *               primaryReel: { type: integer }
  *               bankAccountHolder: { type: string }
  *               bankName: { type: string }
- *               bankAccountNumber: { type: string, description: '9–18 digits' }
- *               bankIfsc: { type: string, description: '11-char IFSC' }
+ *               bankAccountNumber: { type: string }
+ *               bankIfsc: { type: string }
+ *               photoPath: { type: string, description: S3 key from /media/uploads }
+ *               artPhotoPath: { type: string }
+ *               faceVideoPath: { type: string }
+ *               reels:
+ *                 type: array
+ *                 items: { type: string }
+ *                 minItems: 2
+ *                 maxItems: 4
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             description: Legacy file upload path
+ *             properties:
  *               photo: { type: string, format: binary }
  *               artPhoto: { type: string, format: binary }
  *               faceVideo: { type: string, format: binary }
- *               reels: { type: array, items: { type: string, format: binary }, minItems: 2, maxItems: 4 }
+ *               reels: { type: array, items: { type: string, format: binary } }
  *     responses:
  *       200:
  *         description: Profile saved and submitted for verification
@@ -168,9 +183,37 @@ router.post("/artist/profile", ...artistOnly, uploadArtistProfile, artistControl
  *       - in: query
  *         name: limit
  *         schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+ *       - in: query
+ *         name: discipline
+ *         schema: { type: string, example: Musicians }
+ *         description: Art form type
+ *       - in: query
+ *         name: subcategory
+ *         schema: { type: string, example: Guitarist }
+ *       - in: query
+ *         name: city
+ *         schema: { type: string, example: Mumbai }
+ *         description: Matches baseCity, currentCity, or preferredCities
+ *       - in: query
+ *         name: maxRate
+ *         schema: { type: integer, example: 25000 }
+ *         description: Maximum rateInr
+ *       - in: query
+ *         name: date
+ *         schema: { type: string, format: date, example: "2026-11-24" }
+ *         description: Only artists whose recurring weekday for this date is active
+ *       - in: query
+ *         name: weekday
+ *         schema: { type: integer, minimum: 0, maximum: 6, example: 1 }
+ *         description: 0=Sunday … 6=Saturday (or use day=monday)
+ *       - in: query
+ *         name: day
+ *         schema: { type: string, example: monday }
  *     responses:
  *       200:
  *         description: Verified artists only
+ *       400:
+ *         description: Invalid date/weekday filter
  */
 router.get("/artists/verified", artistController.listVerifiedArtists);
 

@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import * as artistService from "../services/artist.service";
 import * as authService from "../services/auth.service";
+import * as availabilityService from "../services/availability.service";
 import * as mediaService from "../services/media.service";
 import * as roleService from "../services/role.service";
 import { toFlatArtist, toPublicArtist, toPublicArtistDetail } from "../utils/artistResponse";
@@ -197,13 +198,41 @@ export async function getProfile(req: Request, res: Response) {
   sendSuccess(res, { profile: toFlatArtist(profile) });
 }
 
-/** GET /artists/verified?page=1&limit=10 — public list of verified artists */
+/** GET /artists/verified — filters: discipline, city, maxRate, date (maps to recurring weekday) */
 export async function listVerifiedArtists(req: Request, res: Response) {
   const q = parsePagination(req.query);
+  const discipline = req.query.discipline ? String(req.query.discipline).trim() : undefined;
+  const subcategory = req.query.subcategory ? String(req.query.subcategory).trim() : undefined;
+  const city = req.query.city ? String(req.query.city).trim() : undefined;
+  const maxRateRaw = req.query.maxRate != null ? Number(req.query.maxRate) : undefined;
+  const maxRate =
+    maxRateRaw != null && Number.isFinite(maxRateRaw) && maxRateRaw > 0
+      ? Math.floor(maxRateRaw)
+      : undefined;
+  const dateStr = req.query.date ? String(req.query.date).trim() : undefined;
+  let date: Date | undefined;
+  if (dateStr) {
+    const parsed = availabilityService.parseDateOnly(dateStr);
+    if (!parsed) throw new ApiError(400, "date must be YYYY-MM-DD");
+    date = parsed;
+  }
+  const weekdayRaw = req.query.weekday ?? req.query.day;
+  const weekday =
+    weekdayRaw != null ? availabilityService.parseWeekday(weekdayRaw) : undefined;
+  if (weekdayRaw != null && weekday == null) {
+    throw new ApiError(400, 'weekday must be 0–6 or a day name like "monday"');
+  }
+
   const { artists, totalCount } = await artistService.listProfiles({
     limit: q.limit,
     offset: q.offset,
     verificationStatus: VERIFICATION_STATUS.VERIFIED,
+    discipline,
+    subcategory,
+    city,
+    maxRate,
+    date,
+    weekday: weekday ?? undefined,
   });
 
   sendSuccess(res, {
@@ -223,8 +252,9 @@ export async function getArtistById(req: Request, res: Response) {
 }
 
 /**
- * POST /artist/profile — one multipart form-data submit.
- * Fields: profile text + bank details + photo, artPhoto, faceVideo, reels (2–4).
+ * POST /artist/profile — text + media.
+ * Preferred: JSON with S3 keys from /media/uploads (direct upload).
+ * Legacy: multipart form-data with files (still supported).
  */
 export async function saveProfile(req: Request, res: Response) {
   const existing = await requireArtistProfile(req.user!.id);
@@ -236,12 +266,7 @@ export async function saveProfile(req: Request, res: Response) {
   const artPhoto = files.artPhoto?.[0];
   const faceVideo = files.faceVideo?.[0];
   const reelFiles = files.reels ?? [];
-
-  if (!photo) throw new ApiError(400, "photo is required");
-  if (!artPhoto) throw new ApiError(400, "artPhoto is required");
-  if (!faceVideo) throw new ApiError(400, "faceVideo is required");
-  if (reelFiles.length < 2) throw new ApiError(400, "At least 2 reels are required");
-  if (reelFiles.length > 4) throw new ApiError(400, "At most 4 reels are allowed");
+  const hasMultipartFiles = Boolean(photo && artPhoto && faceVideo && reelFiles.length >= 2);
 
   const parsed = profileFormSchema.safeParse({
     ...req.body,
@@ -256,16 +281,56 @@ export async function saveProfile(req: Request, res: Response) {
   }
 
   const data = parsed.data;
-  if (data.primaryReel >= reelFiles.length) {
-    throw new ApiError(400, "Choose an uploaded primary reel");
-  }
 
-  const [photoSaved, artSaved, faceSaved, ...reelSaved] = await Promise.all([
-    mediaService.saveArtistMedia(userId, photo),
-    mediaService.saveArtistMedia(userId, artPhoto),
-    mediaService.saveArtistMedia(userId, faceVideo),
-    ...reelFiles.map((f) => mediaService.saveArtistMedia(userId, f)),
-  ]);
+  let photoPath: string;
+  let artPhotoPath: string;
+  let faceVideoPath: string;
+  let reels: string[];
+
+  if (hasMultipartFiles) {
+    if (reelFiles.length > 4) throw new ApiError(400, "At most 4 reels are allowed");
+    if (data.primaryReel >= reelFiles.length) {
+      throw new ApiError(400, "Choose an uploaded primary reel");
+    }
+    const [photoSaved, artSaved, faceSaved, ...reelSaved] = await Promise.all([
+      mediaService.saveArtistMedia(userId, photo!),
+      mediaService.saveArtistMedia(userId, artPhoto!),
+      mediaService.saveArtistMedia(userId, faceVideo!),
+      ...reelFiles.map((f) => mediaService.saveArtistMedia(userId, f)),
+    ]);
+    photoPath = photoSaved.path;
+    artPhotoPath = artSaved.path;
+    faceVideoPath = faceSaved.path;
+    reels = reelSaved.map((r) => r.path);
+  } else {
+    const keyPhoto = String(req.body.photoPath ?? "").trim();
+    const keyArt = String(req.body.artPhotoPath ?? "").trim();
+    const keyFace = String(req.body.faceVideoPath ?? "").trim();
+    const rawReels = req.body.reels;
+    const keyReels = Array.isArray(rawReels)
+      ? rawReels.map((k) => String(k).trim()).filter(Boolean)
+      : parseStringList(rawReels, "reels", []);
+
+    if (!keyPhoto) throw new ApiError(400, "photoPath is required (upload media first)");
+    if (!keyArt) throw new ApiError(400, "artPhotoPath is required (upload media first)");
+    if (!keyFace) throw new ApiError(400, "faceVideoPath is required (upload media first)");
+    if (keyReels.length < 2) throw new ApiError(400, "At least 2 reel keys are required");
+    if (keyReels.length > 4) throw new ApiError(400, "At most 4 reels are allowed");
+    if (data.primaryReel >= keyReels.length) {
+      throw new ApiError(400, "Choose an uploaded primary reel");
+    }
+
+    const verified = await mediaService.assertOwnedMediaKeysExist(userId, [
+      keyPhoto,
+      keyArt,
+      keyFace,
+      ...keyReels,
+    ]);
+    photoPath = verified[0]!;
+    artPhotoPath = verified[1]!;
+    faceVideoPath = verified[2]!;
+    reels = verified.slice(3);
+  }
 
   const previousKeys = [
     existing.photoPath,
@@ -278,10 +343,10 @@ export async function saveProfile(req: Request, res: Response) {
     ...data,
     travelChargeInr: data.travelSetting === "excluding" ? data.travelChargeInr : 0,
     stayChargeInr: data.travelSetting === "excluding" ? data.stayChargeInr : 0,
-    photoPath: photoSaved.path,
-    artPhotoPath: artSaved.path,
-    faceVideoPath: faceSaved.path,
-    reels: reelSaved.map((r) => r.path),
+    photoPath,
+    artPhotoPath,
+    faceVideoPath,
+    reels,
   });
 
   // Best-effort: remove previous S3 objects after DB update succeeds

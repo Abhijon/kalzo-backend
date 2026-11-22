@@ -1,0 +1,14 @@
+[
+  { "type": "Musicians", "subtypes": ["Classical vocalist", "Ghazal singer", "Sufi singer", "Guitarist", "Tabla player", "Flautist", "Sitar player", "Keyboard player", "Band"] },
+  { "type": "Folk singers", "subtypes": ["Rajasthani folk", "Punjabi folk", "Baul", "Lavani", "Bhajan / devotional"] },
+  { "type": "Dancers", "subtypes": ["Kathak", "Bharatanatyam", "Odissi", "Bollywood", "Contemporary", "Folk dance"] },
+  { "type": "DJs", "subtypes": ["Wedding DJ", "Club DJ", "Bollywood DJ"] },
+  { "type": "Band baja", "subtypes": ["Brass band", "Dhol", "Shehnai"] },
+  { "type": "Poets", "subtypes": ["Shayari", "Spoken word", "Kavi sammelan"] },
+  { "type": "Comedians", "subtypes": ["Stand-up", "Mimicry", "Improv"] },
+  { "type": "Magicians", "subtypes": ["Stage magic", "Close-up magic", "Kids' magic"] },
+  { "type": "Special acts", "subtypes": ["Fire act", "Puppetry", "Acrobatics"] },
+  { "type": "Mehendi artists", "subtypes": ["Bridal mehendi", "Arabic mehendi"] },
+  { "type": "Anchors", "subtypes": ["Wedding anchor", "Corporate host"] },
+  { "type": "Artists", "subtypes": ["Live painter", "Caricaturist", "Sketch artist"] }
+]
