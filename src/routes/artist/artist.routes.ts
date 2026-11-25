@@ -255,7 +255,24 @@ router.patch("/artist/profile", ...artistOnly, artistController.updateProfile);
  *       - in: query
  *         name: city
  *         schema: { type: string, example: Mumbai }
- *         description: Matches baseCity, currentCity, or preferredCities
+ *         description: City to match (see tier). Prefer city over state when both are sent.
+ *       - in: query
+ *         name: state
+ *         schema: { type: string, example: Rajasthan }
+ *         description: State to match when city is omitted (see tier)
+ *       - in: query
+ *         name: tier
+ *         schema:
+ *           type: string
+ *           enum: [all, current, base, preferred]
+ *           default: all
+ *         description: |
+ *           Narrow city/state match.
+ *           all = current + base + preferred;
+ *           current = currentCity / currentState;
+ *           base = baseCity / stateName;
+ *           preferred = preferredCities / preferredStates.
+ *           Aliases: visiting→current, pref→preferred.
  *       - in: query
  *         name: maxRate
  *         schema: { type: integer, example: 25000 }
@@ -275,7 +292,7 @@ router.patch("/artist/profile", ...artistOnly, artistController.updateProfile);
  *       200:
  *         description: Verified artists only
  *       400:
- *         description: Invalid date/weekday filter
+ *         description: Invalid date/weekday/tier filter
  */
 router.get("/artists/verified", artistController.listVerifiedArtists);
 
