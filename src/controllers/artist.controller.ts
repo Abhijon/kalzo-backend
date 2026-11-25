@@ -246,12 +246,21 @@ export async function getProfile(req: Request, res: Response) {
   sendSuccess(res, { profile: toFlatArtist(profile) });
 }
 
-/** GET /artists/verified — filters: discipline, city, maxRate, date (maps to recurring weekday) */
+/** GET /artists/verified — filters: discipline, city/state + tier, maxRate, date */
 export async function listVerifiedArtists(req: Request, res: Response) {
   const q = parsePagination(req.query);
   const discipline = req.query.discipline ? String(req.query.discipline).trim() : undefined;
   const subcategory = req.query.subcategory ? String(req.query.subcategory).trim() : undefined;
   const city = req.query.city ? String(req.query.city).trim() : undefined;
+  const state = req.query.state ? String(req.query.state).trim() : undefined;
+  const tierRaw = req.query.tier;
+  const tier = artistService.parseLocationTier(tierRaw);
+  if (tierRaw != null && String(tierRaw).trim() !== "" && tier == null) {
+    throw new ApiError(
+      400,
+      'tier must be one of: all, current, base, preferred (aliases: visiting, pref)',
+    );
+  }
   const maxRateRaw = req.query.maxRate != null ? Number(req.query.maxRate) : undefined;
   const maxRate =
     maxRateRaw != null && Number.isFinite(maxRateRaw) && maxRateRaw > 0
@@ -278,6 +287,8 @@ export async function listVerifiedArtists(req: Request, res: Response) {
     discipline,
     subcategory,
     city,
+    state,
+    tier: tier ?? "all",
     maxRate,
     date,
     weekday: weekday ?? undefined,

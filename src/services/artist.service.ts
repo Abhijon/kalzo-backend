@@ -137,6 +137,65 @@ const listSelect = {
   user: { select: { id: true, email: true, isActive: true } },
 } as const;
 
+/** Location tier for city/state finder filters. */
+export type LocationTier = "all" | "current" | "base" | "preferred";
+
+function caseVariants(value: string): string[] {
+  const t = value.trim();
+  if (!t) return [];
+  const lower = t.toLowerCase();
+  const title = lower.replace(/\b\w/g, (c) => c.toUpperCase());
+  return [...new Set([t, lower, title, t.toUpperCase()])];
+}
+
+/** Prisma `has` on string[] is case-sensitive — try common casings. */
+function stringArrayHasInsensitive(
+  field: "preferredCities" | "preferredStates",
+  value: string,
+): Prisma.ArtistProfileWhereInput {
+  const variants = caseVariants(value);
+  if (variants.length === 1) return { [field]: { has: variants[0] } };
+  return { OR: variants.map((v) => ({ [field]: { has: v } })) };
+}
+
+function cityTierWhere(
+  city: string,
+  tier: LocationTier,
+): Prisma.ArtistProfileWhereInput {
+  const base = { baseCity: { equals: city, mode: "insensitive" as const } };
+  const current = { currentCity: { equals: city, mode: "insensitive" as const } };
+  const preferred = stringArrayHasInsensitive("preferredCities", city);
+
+  if (tier === "base") return base;
+  if (tier === "current") return current;
+  if (tier === "preferred") return preferred;
+  return { OR: [base, current, preferred] };
+}
+
+function stateTierWhere(
+  state: string,
+  tier: LocationTier,
+): Prisma.ArtistProfileWhereInput {
+  const base = { stateName: { equals: state, mode: "insensitive" as const } };
+  const current = { currentState: { equals: state, mode: "insensitive" as const } };
+  const preferred = stringArrayHasInsensitive("preferredStates", state);
+
+  if (tier === "base") return base;
+  if (tier === "current") return current;
+  if (tier === "preferred") return preferred;
+  return { OR: [base, current, preferred] };
+}
+
+export function parseLocationTier(raw: unknown): LocationTier | undefined {
+  if (raw == null || raw === "") return undefined;
+  const v = String(raw).trim().toLowerCase();
+  if (v === "all") return "all";
+  if (v === "base") return "base";
+  if (v === "current" || v === "visiting") return "current";
+  if (v === "preferred" || v === "pref") return "preferred";
+  return undefined;
+}
+
 export async function listProfiles(opts: {
   limit: number;
   offset: number;
@@ -144,12 +203,16 @@ export async function listProfiles(opts: {
   discipline?: string;
   subcategory?: string;
   city?: string;
+  state?: string;
+  /** Narrow city/state match: all | current | base | preferred */
+  tier?: LocationTier;
   maxRate?: number;
   /** Calendar date → filter artists whose recurring weekday is active that day. */
   date?: Date;
   weekday?: number;
 }) {
   const and: Prisma.ArtistProfileWhereInput[] = [];
+  const tier: LocationTier = opts.tier ?? "all";
 
   if (opts.verificationStatus) {
     and.push({ verificationStatus: opts.verificationStatus });
@@ -164,14 +227,9 @@ export async function listProfiles(opts: {
     and.push({ rateInr: { lte: opts.maxRate } });
   }
   if (opts.city) {
-    const city = opts.city;
-    and.push({
-      OR: [
-        { baseCity: { equals: city, mode: "insensitive" } },
-        { currentCity: { equals: city, mode: "insensitive" } },
-        { preferredCities: { has: city } },
-      ],
-    });
+    and.push(cityTierWhere(opts.city, tier));
+  } else if (opts.state) {
+    and.push(stateTierWhere(opts.state, tier));
   }
   const weekday =
     opts.weekday ??
