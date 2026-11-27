@@ -164,5 +164,6 @@ router.post("/verify-otp", validate(verifyOtpSchema), authController.verifyOtp);
  *             schema: { $ref: '#/components/schemas/Error' }
  */
 router.get("/me", authenticate, authController.getMe);
+router.patch("/me", authenticate, authController.updateMe);
 
 export default router;

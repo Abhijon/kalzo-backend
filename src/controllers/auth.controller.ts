@@ -6,6 +6,8 @@ import { ApiError } from "../utils/apiError";
 import { assertCanSendOtp, markOtpSent, OTP_COOLDOWN_SECONDS } from "../utils/otpCooldown";
 import { sendSuccess } from "../utils/response";
 import { toPublicUser } from "../utils/user";
+import { prisma } from "../lib/prisma";
+import { ROLES } from "../utils/roles";
 
 /** Request an OTP for login. Email OTP comes later; for now the static OTP is used. */
 export async function login(req: Request, res: Response) {
@@ -49,6 +51,51 @@ export async function getMe(req: Request, res: Response) {
   sendSuccess(res, {
     user: toPublicUser(user),
     profile: customerProfile ?? artistProfile,
+  });
+}
+
+export async function updateMe(req: Request, res: Response) {
+  const userId = req.user!.id;
+  const user = await authService.findUserWithProfileById(userId);
+  if (!user) throw new ApiError(404, "User not found");
+
+  const role = user.role?.name;
+  if (role === ROLES.CUSTOMER) {
+    const { fullName, location, customerType, reasonForBooking, businessName, mobileNumber } = req.body;
+    const data: Record<string, any> = {};
+    if (typeof fullName === "string" && fullName.trim()) data.fullName = fullName.trim();
+    if (typeof location === "string" && location.trim()) data.location = location.trim();
+    if (typeof customerType === "string" && customerType.trim()) data.customerType = customerType.trim();
+    if (typeof reasonForBooking === "string" && reasonForBooking.trim()) data.reasonForBooking = reasonForBooking.trim();
+    if (typeof businessName === "string") data.businessName = businessName.trim();
+    if (typeof mobileNumber === "string" && mobileNumber.trim()) data.mobileNumber = mobileNumber.trim();
+
+    const updated = await prisma.customerProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        fullName: data.fullName ?? "Patron",
+        location: data.location ?? "",
+        customerType: data.customerType ?? "Individual / family",
+        reasonForBooking: data.reasonForBooking ?? "",
+        businessName: data.businessName ?? null,
+        mobileNumber: data.mobileNumber ?? "",
+      },
+      update: data,
+    });
+
+    sendSuccess(res, {
+      message: "Profile updated successfully",
+      profile: updated,
+      user: toPublicUser(user),
+    });
+    return;
+  }
+
+  sendSuccess(res, {
+    message: "Profile updated",
+    profile: user.customerProfile ?? user.artistProfile,
+    user: toPublicUser(user),
   });
 }
 
