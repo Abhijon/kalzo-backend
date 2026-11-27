@@ -207,6 +207,8 @@ export async function listProfiles(opts: {
   /** Narrow city/state match: all | current | base | preferred */
   tier?: LocationTier;
   maxRate?: number;
+  /** At least one recurring weekday is active (Any day filter). */
+  anyDay?: boolean;
   /** Calendar date → filter artists whose recurring weekday is active that day. */
   date?: Date;
   weekday?: number;
@@ -231,15 +233,23 @@ export async function listProfiles(opts: {
   } else if (opts.state) {
     and.push(stateTierWhere(opts.state, tier));
   }
-  const weekday =
-    opts.weekday ??
-    (opts.date ? opts.date.getUTCDay() : undefined);
-  if (weekday != null) {
+  if (opts.anyDay) {
     and.push({
       availabilityWeekdays: {
-        some: { weekday, isActive: true },
+        some: { isActive: true },
       },
     });
+  } else {
+    const weekday =
+      opts.weekday ??
+      (opts.date ? opts.date.getUTCDay() : undefined);
+    if (weekday != null) {
+      and.push({
+        availabilityWeekdays: {
+          some: { weekday, isActive: true },
+        },
+      });
+    }
   }
 
   const where: Prisma.ArtistProfileWhereInput = and.length ? { AND: and } : {};

@@ -266,14 +266,19 @@ export async function listVerifiedArtists(req: Request, res: Response) {
     maxRateRaw != null && Number.isFinite(maxRateRaw) && maxRateRaw > 0
       ? Math.floor(maxRateRaw)
       : undefined;
+  const anyDayRaw = String(req.query.anyDay ?? "")
+    .trim()
+    .toLowerCase();
+  const anyDay = anyDayRaw === "true" || anyDayRaw === "1";
+
   const dateStr = req.query.date ? String(req.query.date).trim() : undefined;
   let date: Date | undefined;
-  if (dateStr) {
+  if (!anyDay && dateStr) {
     const parsed = availabilityService.parseDateOnly(dateStr);
     if (!parsed) throw new ApiError(400, "date must be YYYY-MM-DD");
     date = parsed;
   }
-  const weekdayRaw = req.query.weekday ?? req.query.day;
+  const weekdayRaw = anyDay ? undefined : (req.query.weekday ?? req.query.day);
   const weekday =
     weekdayRaw != null ? availabilityService.parseWeekday(weekdayRaw) : undefined;
   if (weekdayRaw != null && weekday == null) {
@@ -290,6 +295,7 @@ export async function listVerifiedArtists(req: Request, res: Response) {
     state,
     tier: tier ?? "all",
     maxRate,
+    anyDay: anyDay || undefined,
     date,
     weekday: weekday ?? undefined,
   });

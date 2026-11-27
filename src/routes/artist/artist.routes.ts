@@ -278,6 +278,10 @@ router.patch("/artist/profile", ...artistOnly, artistController.updateProfile);
  *         schema: { type: integer, example: 25000 }
  *         description: Maximum rateInr
  *       - in: query
+ *         name: anyDay
+ *         schema: { type: boolean, example: true }
+ *         description: If true, artists with at least one active weekday (ignores date/weekday)
+ *       - in: query
  *         name: date
  *         schema: { type: string, format: date, example: "2026-11-24" }
  *         description: Only artists whose recurring weekday for this date is active
