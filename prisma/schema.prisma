@@ -181,6 +181,13 @@ enum BookingStatus {
   completed
 }
 
+enum PaymentStatus {
+  unpaid
+  created
+  paid
+  failed
+}
+
 model Booking {
   id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   customerUserId  String        @map("customer_user_id") @db.Uuid
@@ -191,14 +198,21 @@ model Booking {
   address         String
   guests          String?
   note            String?
-  /// Quoted amount only — payment not required yet
+  /// Quoted amount (INR). Charged via Razorpay after booking is created.
   amountInr       Int           @default(0) @map("amount_inr")
   status          BookingStatus @default(pending)
+  paymentStatus   PaymentStatus @default(unpaid) @map("payment_status")
+  /// Client Idempotency-Key for create-order — prevents duplicate Razorpay orders
+  paymentIdempotencyKey String? @unique @map("payment_idempotency_key")
+  razorpayOrderId   String?     @unique @map("razorpay_order_id")
+  razorpayPaymentId String?     @unique @map("razorpay_payment_id")
+  paidAt            DateTime?   @map("paid_at") @db.Timestamptz(6)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([customerUserId])
   @@index([artistProfileId])
   @@index([status])
+  @@index([paymentStatus])
   @@map("bookings")
 }

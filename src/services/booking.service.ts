@@ -1,7 +1,8 @@
 import type { BookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { PAYMENT_STATUS } from "../utils/paymentStatus";
 
-const bookingSelect = {
+export const bookingSelect = {
   id: true,
   customerUserId: true,
   artistProfileId: true,
@@ -11,6 +12,11 @@ const bookingSelect = {
   note: true,
   amountInr: true,
   status: true,
+  paymentStatus: true,
+  paymentIdempotencyKey: true,
+  razorpayOrderId: true,
+  razorpayPaymentId: true,
+  paidAt: true,
   createdAt: true,
   updatedAt: true,
   artist: {
@@ -84,12 +90,14 @@ export async function listCustomerBookings(
   return { bookings, totalCount };
 }
 
+/** Artist inbox: only paid bookings (unpaid / order-created stay customer-only). */
 export async function listArtistBookings(
   artistProfileId: string,
   opts: { limit: number; offset: number; status?: BookingStatus },
 ) {
   const where = {
     artistProfileId,
+    paymentStatus: PAYMENT_STATUS.PAID,
     ...(opts.status ? { status: opts.status } : {}),
   };
   const [bookings, totalCount] = await Promise.all([

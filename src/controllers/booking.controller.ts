@@ -11,6 +11,7 @@ import {
 } from "../utils/bookingStatus";
 import { toBookingDto } from "../utils/bookingResponse";
 import { paginationMeta, parsePagination } from "../utils/pagination";
+import { PAYMENT_STATUS } from "../utils/paymentStatus";
 import { sendSuccess } from "../utils/response";
 import { VERIFICATION_STATUS } from "../utils/verification";
 import { weekdayName } from "../utils/weekdays";
@@ -70,7 +71,7 @@ export async function createBooking(req: Request, res: Response) {
   sendSuccess(
     res,
     {
-      message: "Booking request sent. Waiting for the artist to respond.",
+      message: "Booking created. Complete payment to send the invitation to the artist.",
       booking: toBookingDto(booking),
     },
     201,
@@ -99,6 +100,10 @@ export async function getBookingById(req: Request, res: Response) {
   const isArtist = myArtist?.id === booking.artistProfileId;
   if (!isCustomer && !isArtist) {
     throw new ApiError(403, "You do not have access to this booking");
+  }
+  // Artists only see the booking after payment succeeds.
+  if (isArtist && !isCustomer && booking.paymentStatus !== PAYMENT_STATUS.PAID) {
+    throw new ApiError(404, "Booking not found");
   }
 
   sendSuccess(res, { booking: toBookingDto(booking) });
@@ -133,7 +138,11 @@ export async function listArtistBookings(req: Request, res: Response) {
 export async function updateBookingStatus(req: Request, res: Response) {
   const profile = await artistService.ensureProfileByUserId(req.user!.id);
   const booking = await bookingService.findBookingById(String(req.params.id));
-  if (!booking || booking.artistProfileId !== profile.id) {
+  if (
+    !booking ||
+    booking.artistProfileId !== profile.id ||
+    booking.paymentStatus !== PAYMENT_STATUS.PAID
+  ) {
     throw new ApiError(404, "Booking not found");
   }
 

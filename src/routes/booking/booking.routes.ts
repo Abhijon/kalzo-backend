@@ -153,7 +153,8 @@ router.get("/bookings/:id", ...authed, validateParams(uuidParam), bookingControl
  * /artist/bookings:
  *   get:
  *     tags: [Bookings]
- *     summary: Artist — list bookings (paginated, optional status filter)
+ *     summary: Artist — list paid bookings only (paginated, optional status filter)
+ *     description: Unpaid / payment-pending bookings are hidden until paymentStatus is paid.
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: query
@@ -165,7 +166,7 @@ router.get("/bookings/:id", ...authed, validateParams(uuidParam), bookingControl
  *       - in: query
  *         name: status
  *         required: false
- *         description: Filter by BookingStatus enum. Omit for all.
+ *         description: Filter by BookingStatus enum. Omit for all paid bookings.
  *         schema:
  *           type: string
  *           enum: [pending, accepted, rejected, job_started, completed]

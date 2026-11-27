@@ -56,11 +56,33 @@ const schema = z
       (value) => (value === "" ? undefined : value),
       z.string().url().optional(),
     ),
+    // Razorpay — optional until you enable payments (test keys first)
+    RAZORPAY_KEY_ID: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    RAZORPAY_KEY_SECRET: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    RAZORPAY_WEBHOOK_SECRET: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
   })
   .refine((e) => !e.STATIC_OTP_ENABLED || e.STATIC_OTP, {
     message: "STATIC_OTP is required when STATIC_OTP_ENABLED=true",
     path: ["STATIC_OTP"],
-  });
+  })
+  .refine(
+    (e) =>
+      (!e.RAZORPAY_KEY_ID && !e.RAZORPAY_KEY_SECRET) ||
+      (Boolean(e.RAZORPAY_KEY_ID) && Boolean(e.RAZORPAY_KEY_SECRET)),
+    {
+      message: "RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must both be set",
+      path: ["RAZORPAY_KEY_SECRET"],
+    },
+  );
 
 const parsed = schema.safeParse(process.env);
 if (!parsed.success) {

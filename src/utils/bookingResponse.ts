@@ -11,6 +11,11 @@ type BookingRow = {
   note: string | null;
   amountInr: number;
   status: string;
+  paymentStatus: string;
+  paymentIdempotencyKey?: string | null;
+  razorpayOrderId?: string | null;
+  razorpayPaymentId?: string | null;
+  paidAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   artist: {
@@ -48,6 +53,10 @@ export function toBookingDto(row: BookingRow) {
     note: row.note,
     amountInr: row.amountInr,
     status: row.status,
+    paymentStatus: row.paymentStatus,
+    razorpayOrderId: row.razorpayOrderId ?? null,
+    razorpayPaymentId: row.razorpayPaymentId ?? null,
+    paidAt: row.paidAt ? row.paidAt.toISOString() : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     artist: {
