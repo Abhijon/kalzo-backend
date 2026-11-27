@@ -7,7 +7,42 @@ import { assertCanSendOtp, markOtpSent, OTP_COOLDOWN_SECONDS } from "../utils/ot
 import { sendSuccess } from "../utils/response";
 import { toPublicUser } from "../utils/user";
 import { prisma } from "../lib/prisma";
-import { ROLES } from "../utils/roles";
+import { ROLES, type RoleName } from "../utils/roles";
+
+const PORTAL_ROLES = [ROLES.CUSTOMER, ROLES.ARTIST] as const;
+
+/**
+ * Customer portal must only log in CUSTOMER accounts; artist portal only ARTIST.
+ * Prevents cross-portal sign-in with the same email.
+ */
+function assertPortalRole(
+  accountRole: string | undefined,
+  requestedRaw: unknown,
+) {
+  const requested = String(requestedRaw ?? "")
+    .trim()
+    .toUpperCase() as RoleName;
+  if (!(PORTAL_ROLES as readonly string[]).includes(requested)) {
+    throw new ApiError(400, "role must be CUSTOMER or ARTIST");
+  }
+
+  const account = String(accountRole ?? "").toUpperCase();
+  if (account === requested) return;
+
+  if (account === ROLES.ARTIST) {
+    throw new ApiError(
+      403,
+      "This email is not registered as an customer.",
+    );
+  }
+  if (account === ROLES.CUSTOMER) {
+    throw new ApiError(
+      403,
+      "This email is not registered as an artist.",
+    );
+  }
+  throw new ApiError(403, "This account cannot log in here.");
+}
 
 /** Request an OTP for login. Email OTP comes later; for now the static OTP is used. */
 export async function login(req: Request, res: Response) {
@@ -15,6 +50,8 @@ export async function login(req: Request, res: Response) {
 
   const found = await authService.findUserByEmail(email);
   if (!found) throw new ApiError(404, "We couldn't find an account with this email");
+
+  assertPortalRole(found.role?.name, req.body.role);
 
   assertCanSendOtp(email);
   markOtpSent(email);
@@ -32,6 +69,8 @@ export async function resendOtp(req: Request, res: Response) {
 
   const found = await authService.findUserByEmail(email);
   if (!found) throw new ApiError(404, "We couldn't find an account with this email");
+
+  assertPortalRole(found.role?.name, req.body.role);
 
   assertCanSendOtp(email);
   markOtpSent(email);
@@ -113,6 +152,9 @@ export async function verifyOtp(req: Request, res: Response) {
 
   const found = await authService.findUserByEmail(email);
   if (!found || otp !== env.STATIC_OTP) throw new ApiError(400, "Invalid email or OTP");
+
+  // Security gate: refuse token if portal role does not match the account.
+  assertPortalRole(found.role?.name, req.body.role);
 
   const user = toPublicUser(found.isActive ? found : await authService.activateUser(found.id));
   const token = signToken({ id: user.id, email: user.email, role: user.role });

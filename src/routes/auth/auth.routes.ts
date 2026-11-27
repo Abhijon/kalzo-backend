@@ -6,13 +6,17 @@ import { validate } from "../../utils/validate";
 
 const router = Router();
 
+const portalRoleSchema = z.enum(["CUSTOMER", "ARTIST"]);
+
 const loginSchema = z.object({
   email: z.email(),
+  role: portalRoleSchema,
 });
 
 const verifyOtpSchema = z.object({
   email: z.email(),
   otp: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+  role: portalRoleSchema,
 });
 
 /**
@@ -20,41 +24,29 @@ const verifyOtpSchema = z.object({
  * /login:
  *   post:
  *     tags: [Auth]
- *     summary: Request a login OTP for an existing customer or artist (email only)
- *     description: No password. While STATIC_OTP_ENABLED is true, use the static OTP with /verify-otp. Real email OTP comes later.
+ *     summary: Request a login OTP (role-gated portal)
+ *     description: |
+ *       No password. `role` must match the account (CUSTOMER vs ARTIST).
+ *       Artists cannot log in from the client portal and vice versa.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [email]
+ *             required: [email, role]
  *             properties:
  *               email: { type: string, format: email }
+ *               role: { type: string, enum: [CUSTOMER, ARTIST] }
  *     responses:
  *       200:
  *         description: OTP ready (static OTP for now)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean, example: true }
- *                 data:
- *                   type: object
- *                   properties:
- *                     message: { type: string, example: "OTP sent. Enter the code to log in." }
- *                     email: { type: string, format: email }
  *       400:
  *         description: Invalid input
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Email belongs to the other portal role
  *       404:
  *         description: No account for this email
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
  */
 router.post("/login", validate(loginSchema), authController.login);
 
@@ -64,41 +56,26 @@ router.post("/login", validate(loginSchema), authController.login);
  *   post:
  *     tags: [Auth]
  *     summary: Resend the OTP after signup or login
- *     description: 60s cooldown between sends (same as the frontend RESEND timer). Static OTP for now.
+ *     description: Same role gate as /login. 60s cooldown between sends.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [email]
+ *             required: [email, role]
  *             properties:
  *               email: { type: string, format: email }
+ *               role: { type: string, enum: [CUSTOMER, ARTIST] }
  *     responses:
  *       200:
  *         description: OTP resent
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success: { type: boolean, example: true }
- *                 data:
- *                   type: object
- *                   properties:
- *                     message: { type: string }
- *                     email: { type: string, format: email }
- *                     cooldownSeconds: { type: integer, example: 60 }
+ *       403:
+ *         description: Email belongs to the other portal role
  *       404:
  *         description: No account for this email
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
  *       429:
  *         description: Cooldown still active
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
  */
 router.post("/resend-otp", validate(loginSchema), authController.resendOtp);
 
@@ -108,33 +85,29 @@ router.post("/resend-otp", validate(loginSchema), authController.resendOtp);
  *   post:
  *     tags: [Auth]
  *     summary: Verify OTP after signup or login and receive a JWT
- *     description: Uses the static OTP from the server environment while STATIC_OTP_ENABLED is true. Activates the account on first verify.
+ *     description: |
+ *       Issues a JWT only when `role` matches the account.
+ *       Uses the static OTP while STATIC_OTP_ENABLED is true.
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [email, otp]
+ *             required: [email, otp, role]
  *             properties:
  *               email: { type: string, format: email }
- *               otp: { type: string, pattern: '^\d{4}$' }
+ *               otp: { type: string, pattern: '^\d{6}$' }
+ *               role: { type: string, enum: [CUSTOMER, ARTIST] }
  *     responses:
  *       200:
  *         description: Verified and logged in
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/AuthResponse' }
  *       400:
  *         description: Invalid email or OTP
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
+ *       403:
+ *         description: Email belongs to the other portal role
  *       503:
  *         description: Static OTP is disabled and email OTP is not available yet
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/Error' }
  */
 router.post("/verify-otp", validate(verifyOtpSchema), authController.verifyOtp);
 
