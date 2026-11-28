@@ -76,6 +76,8 @@ export const artistProfileSelect = {
   bankName: true,
   bankAccountNumber: true,
   bankIfsc: true,
+  avgRating: true,
+  reviewCount: true,
   createdAt: true,
   updatedAt: true,
 } as const;

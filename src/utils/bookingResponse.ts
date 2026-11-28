@@ -18,6 +18,13 @@ type BookingRow = {
   paidAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  review?: {
+    id: string;
+    rating: number;
+    body: string;
+    tags: string[];
+    createdAt: Date;
+  } | null;
   artist: {
     id: string;
     stageName: string | null;
@@ -57,6 +64,15 @@ export function toBookingDto(row: BookingRow) {
     razorpayOrderId: row.razorpayOrderId ?? null,
     razorpayPaymentId: row.razorpayPaymentId ?? null,
     paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+    review: row.review
+      ? {
+          id: row.review.id,
+          rating: row.review.rating,
+          body: row.review.body,
+          tags: row.review.tags ?? [],
+          createdAt: row.review.createdAt.toISOString(),
+        }
+      : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     artist: {

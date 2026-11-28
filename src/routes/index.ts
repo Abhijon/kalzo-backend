@@ -9,6 +9,7 @@ import customerRoutes from "./customer/customer.routes";
 import kycRoutes from "./kyc/kyc.routes";
 import mediaRoutes from "./media/media.routes";
 import paymentRoutes from "./payment/payment.routes";
+import reviewRoutes from "./review/review.routes";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use("/", artistRoutes);
 router.use("/", availabilityRoutes);
 router.use("/", bookingRoutes);
 router.use("/", paymentRoutes);
+router.use("/", reviewRoutes);
 router.use("/", catalogRoutes);
 router.use("/", kycRoutes);
 router.use("/", adminRoutes);

@@ -56,6 +56,8 @@ export type FlatArtist = {
   bankName: string | null;
   bankAccountNumber: string | null;
   bankIfsc: string | null;
+  avgRating: number;
+  reviewCount: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -100,6 +102,8 @@ type ProfileWithUser = {
   bankName: string | null;
   bankAccountNumber: string | null;
   bankIfsc: string | null;
+  avgRating?: number;
+  reviewCount?: number;
   createdAt: Date;
   updatedAt: Date;
   user?: { id: string; email: string; isActive: boolean } | null;
@@ -152,6 +156,8 @@ export function toFlatArtist(row: ProfileWithUser): FlatArtist {
     bankName: row.bankName,
     bankAccountNumber: row.bankAccountNumber,
     bankIfsc: row.bankIfsc,
+    avgRating: Number(row.avgRating ?? 0),
+    reviewCount: Number(row.reviewCount ?? 0),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
