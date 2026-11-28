@@ -115,8 +115,13 @@ model ArtistProfile {
   bankAccountNumber  String?            @map("bank_account_number")
   bankIfsc           String?            @map("bank_ifsc")
 
+  /// Denormalized from ArtistReview — updated on create.
+  avgRating          Float              @default(0) @map("avg_rating")
+  reviewCount        Int                @default(0) @map("review_count")
+
   availabilityWeekdays ArtistAvailabilityWeekday[]
   bookings             Booking[]
+  reviews              ArtistReview[]
 
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -207,6 +212,7 @@ model Booking {
   razorpayOrderId   String?     @unique @map("razorpay_order_id")
   razorpayPaymentId String?     @unique @map("razorpay_payment_id")
   paidAt            DateTime?   @map("paid_at") @db.Timestamptz(6)
+  review          ArtistReview?
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -215,4 +221,23 @@ model Booking {
   @@index([status])
   @@index([paymentStatus])
   @@map("bookings")
+}
+
+/// One patron review per completed booking.
+model ArtistReview {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId       String        @unique @map("booking_id") @db.Uuid
+  booking         Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customerUserId  String        @map("customer_user_id") @db.Uuid
+  artistProfileId String        @map("artist_profile_id") @db.Uuid
+  artist          ArtistProfile @relation(fields: [artistProfileId], references: [id], onDelete: Cascade)
+  rating          Int
+  body            String
+  tags            String[]      @default([])
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([artistProfileId, createdAt])
+  @@index([customerUserId])
+  @@map("artist_reviews")
 }

@@ -19,6 +19,15 @@ export const bookingSelect = {
   paidAt: true,
   createdAt: true,
   updatedAt: true,
+  review: {
+    select: {
+      id: true,
+      rating: true,
+      body: true,
+      tags: true,
+      createdAt: true,
+    },
+  },
   artist: {
     select: {
       id: true,
