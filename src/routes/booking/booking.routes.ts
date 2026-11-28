@@ -48,7 +48,19 @@ const createSchema = z
   });
 
 const statusSchema = z.object({
-  status: z.enum(["accepted", "rejected", "job_started", "completed"]),
+  status: z.enum(["accepted", "rejected", "arrived", "finished"]),
+});
+
+const otpSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the six-digit OTP"),
+});
+
+const venueVideoSchema = z.object({
+  path: z.string().trim().min(1).max(500).optional(),
+  venueVideoPath: z.string().trim().min(1).max(500).optional(),
+}).refine((b) => Boolean(b.path || b.venueVideoPath), {
+  message: "path is required",
+  path: ["path"],
 });
 
 /**
@@ -57,7 +69,7 @@ const statusSchema = z.object({
  *   get:
  *     tags: [Bookings]
  *     summary: List all BookingStatus enum values (public)
- *     description: Returns pending, accepted, rejected, job_started, completed for filters and UI tabs.
+ *     description: Returns pending, accepted, rejected, arrived, arrival_confirmed, performing, finished, completed for filters and UI tabs.
  *     responses:
  *       200:
  *         description: Booking status enum values
@@ -74,8 +86,8 @@ const statusSchema = z.object({
  *                       type: array
  *                       items:
  *                         type: string
- *                         enum: [pending, accepted, rejected, job_started, completed]
- *                       example: [pending, accepted, rejected, job_started, completed]
+ *                         enum: [pending, accepted, rejected, arrived, arrival_confirmed, performing, finished, completed]
+ *                       example: [pending, accepted, rejected, arrived, arrival_confirmed, performing, finished, completed]
  */
 router.get("/booking-statuses", bookingController.listBookingStatuses);
 
@@ -148,6 +160,14 @@ router.get("/bookings", ...customerOnly, bookingController.listMyBookings);
  */
 router.get("/bookings/:id", ...authed, validateParams(uuidParam), bookingController.getBookingById);
 
+/** Patron — reveal arrival/closing OTP for the current stage */
+router.get(
+  "/bookings/:id/codes",
+  ...customerOnly,
+  validateParams(uuidParam),
+  bookingController.getBookingCodes,
+);
+
 /**
  * @swagger
  * /artist/bookings:
@@ -169,7 +189,7 @@ router.get("/bookings/:id", ...authed, validateParams(uuidParam), bookingControl
  *         description: Filter by BookingStatus enum. Omit for all paid bookings.
  *         schema:
  *           type: string
- *           enum: [pending, accepted, rejected, job_started, completed]
+ *           enum: [pending, accepted, rejected, arrived, arrival_confirmed, performing, finished, completed]
  *           example: pending
  *     responses:
  *       200:
@@ -180,40 +200,8 @@ router.get("/bookings/:id", ...authed, validateParams(uuidParam), bookingControl
 router.get("/artist/bookings", ...artistOnly, bookingController.listArtistBookings);
 
 /**
- * @swagger
- * /artist/bookings/{id}/status:
- *   patch:
- *     tags: [Bookings]
- *     summary: Artist — update booking status
- *     description: Transitions only — pending→accepted|rejected, accepted→job_started|rejected, job_started→completed
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         description: Booking UUID
- *         schema: { type: string, format: uuid }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [status]
- *             properties:
- *               status:
- *                 type: string
- *                 enum: [accepted, rejected, job_started, completed]
- *                 example: accepted
- *           example:
- *             status: accepted
- *     responses:
- *       200:
- *         description: Status updated
- *       400:
- *         description: Invalid transition or body
- *       404:
- *         description: Booking not found
+ * Artist status patches: pending→accepted|rejected, accepted→arrived|rejected, performing→finished.
+ * Arrival/closing OTP and venue video use dedicated routes below.
  */
 router.patch(
   "/artist/bookings/:id/status",
@@ -221,6 +209,30 @@ router.patch(
   validateParams(uuidParam),
   validate(statusSchema),
   bookingController.updateBookingStatus,
+);
+
+router.post(
+  "/artist/bookings/:id/arrival/verify",
+  ...artistOnly,
+  validateParams(uuidParam),
+  validate(otpSchema),
+  bookingController.verifyArrivalCode,
+);
+
+router.post(
+  "/artist/bookings/:id/venue-video",
+  ...artistOnly,
+  validateParams(uuidParam),
+  validate(venueVideoSchema),
+  bookingController.submitVenueVideo,
+);
+
+router.post(
+  "/artist/bookings/:id/closing/verify",
+  ...artistOnly,
+  validateParams(uuidParam),
+  validate(otpSchema),
+  bookingController.verifyClosingCode,
 );
 
 export default router;

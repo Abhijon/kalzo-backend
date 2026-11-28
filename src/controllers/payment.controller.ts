@@ -49,7 +49,7 @@ export async function createPaymentOrder(req: Request, res: Response) {
       keyId: null,
       orderId: booking.razorpayOrderId,
       paymentStatus: booking.paymentStatus,
-      booking: toBookingDto(booking),
+      booking: toBookingDto(booking, "customer"),
     });
     return;
   }
@@ -97,7 +97,7 @@ export async function verifyPayment(req: Request, res: Response) {
       ? "Payment already verified."
       : "Payment verified. Booking is paid.",
     alreadyPaid: result.alreadyPaid,
-    booking: toBookingDto(result.booking),
+    booking: toBookingDto(result.booking, "customer"),
   });
 }
 
@@ -114,6 +114,6 @@ export async function getPayment(req: Request, res: Response) {
     razorpayOrderId: booking.razorpayOrderId,
     razorpayPaymentId: booking.razorpayPaymentId,
     paidAt: booking.paidAt ? booking.paidAt.toISOString() : null,
-    booking: toBookingDto(booking),
+    booking: toBookingDto(booking, "customer"),
   });
 }

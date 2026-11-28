@@ -93,5 +93,7 @@ if (!parsed.success) {
 export const env = parsed.data;
 
 if (env.STATIC_OTP_ENABLED && env.NODE_ENV === "production") {
-  console.warn("[security] STATIC_OTP_ENABLED is true in production: anyone can verify any account with the static OTP.");
+  console.warn(
+    "[security] STATIC_OTP_ENABLED is true in production: login and booking arrival/closing OTPs all accept the static OTP.",
+  );
 }

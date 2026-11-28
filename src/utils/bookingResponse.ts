@@ -1,4 +1,6 @@
 import { publicUrl } from "../services/media.service";
+import { expectedBookingOtp } from "./bookingCodes";
+import { BOOKING_STATUS } from "./bookingStatus";
 import { formatDateOnly, weekdayFromDate, weekdayName } from "./weekdays";
 
 type BookingRow = {
@@ -16,6 +18,12 @@ type BookingRow = {
   razorpayOrderId?: string | null;
   razorpayPaymentId?: string | null;
   paidAt?: Date | null;
+  arrivalCode?: string | null;
+  closingCode?: string | null;
+  arrivalAttempts?: number;
+  closingAttempts?: number;
+  venueVideoPath?: string | null;
+  payoutStatus?: string;
   createdAt: Date;
   updatedAt: Date;
   review?: {
@@ -46,8 +54,20 @@ type BookingRow = {
   };
 };
 
-export function toBookingDto(row: BookingRow) {
+export type BookingDtoAudience = "customer" | "artist" | "admin";
+
+/** Which OTP the patron may see right now. */
+export function codeRevealForStatus(status: string): "none" | "arrival" | "closing" {
+  if (status === BOOKING_STATUS.ARRIVED) return "arrival";
+  if (status === BOOKING_STATUS.FINISHED) return "closing";
+  return "none";
+}
+
+export function toBookingDto(row: BookingRow, audience: BookingDtoAudience = "customer") {
   const weekday = weekdayFromDate(row.eventDate);
+  const reveal = codeRevealForStatus(row.status);
+  const isCustomer = audience === "customer" || audience === "admin";
+
   return {
     id: row.id,
     customerUserId: row.customerUserId,
@@ -64,6 +84,21 @@ export function toBookingDto(row: BookingRow) {
     razorpayOrderId: row.razorpayOrderId ?? null,
     razorpayPaymentId: row.razorpayPaymentId ?? null,
     paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+    payoutStatus: row.payoutStatus ?? "not_applicable",
+    hasVenueVideo: Boolean(row.venueVideoPath),
+    venueVideoUrl:
+      audience !== "customer" && row.venueVideoPath
+        ? publicUrl(row.venueVideoPath)
+        : null,
+    codeReveal: isCustomer ? reveal : "none",
+    arrivalCode:
+      isCustomer && reveal === "arrival"
+        ? expectedBookingOtp(row.arrivalCode)
+        : null,
+    closingCode:
+      isCustomer && reveal === "closing"
+        ? expectedBookingOtp(row.closingCode)
+        : null,
     review: row.review
       ? {
           id: row.review.id,

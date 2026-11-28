@@ -1,5 +1,6 @@
 import type { BookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { newBookingCodes } from "../utils/bookingCodes";
 import { PAYMENT_STATUS } from "../utils/paymentStatus";
 
 export const bookingSelect = {
@@ -17,6 +18,12 @@ export const bookingSelect = {
   razorpayOrderId: true,
   razorpayPaymentId: true,
   paidAt: true,
+  arrivalCode: true,
+  closingCode: true,
+  arrivalAttempts: true,
+  closingAttempts: true,
+  venueVideoPath: true,
+  payoutStatus: true,
   createdAt: true,
   updatedAt: true,
   review: {
@@ -130,6 +137,44 @@ export function updateBookingStatus(id: string, status: BookingStatus) {
   });
 }
 
+export function updateBookingFields(
+  id: string,
+  data: Prisma.BookingUpdateInput,
+) {
+  return prisma.booking.update({
+    where: { id },
+    data,
+    select: bookingSelect,
+  });
+}
+
+/** Mint OTPs for paid bookings created before the OTP flow shipped. */
+export async function ensureBookingCodes(id: string) {
+  const row = await prisma.booking.findUnique({
+    where: { id },
+    select: { arrivalCode: true, closingCode: true, paymentStatus: true },
+  });
+  if (!row || row.paymentStatus !== PAYMENT_STATUS.PAID) return findBookingById(id);
+  if (
+    row.arrivalCode &&
+    row.closingCode &&
+    row.arrivalCode.length === 6 &&
+    row.closingCode.length === 6
+  ) {
+    return findBookingById(id);
+  }
+
+  const codes = newBookingCodes();
+  return prisma.booking.update({
+    where: { id },
+    data: {
+      arrivalCode: row.arrivalCode || codes.arrival,
+      closingCode: row.closingCode || codes.closing,
+    },
+    select: bookingSelect,
+  });
+}
+
 /** Active bookings already holding this artist+date (no double-book same day). */
 export function countBlockingBookingsForDate(
   artistProfileId: string,
@@ -140,7 +185,16 @@ export function countBlockingBookingsForDate(
     where: {
       artistProfileId,
       eventDate,
-      status: { in: ["pending", "accepted", "job_started"] },
+      status: {
+        in: [
+          "pending",
+          "accepted",
+          "arrived",
+          "arrival_confirmed",
+          "performing",
+          "finished",
+        ],
+      },
       ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
     },
   });

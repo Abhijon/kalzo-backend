@@ -30,7 +30,7 @@ const artistOnly = [authenticate, authorize(ROLES.ARTIST)] as const;
  *             properties:
  *               purpose:
  *                 type: string
- *                 enum: [photo, artPhoto, faceVideo, reel]
+ *                 enum: [photo, artPhoto, faceVideo, reel, venueVideo]
  *               contentType: { type: string, example: video/webm }
  *               fileSize: { type: integer, example: 12000000 }
  *               fileName: { type: string }
