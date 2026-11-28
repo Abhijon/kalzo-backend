@@ -182,7 +182,10 @@ enum BookingStatus {
   pending
   accepted
   rejected
-  job_started
+  arrived
+  arrival_confirmed
+  performing
+  finished
   completed
 }
 
@@ -191,6 +194,13 @@ enum PaymentStatus {
   created
   paid
   failed
+}
+
+/// Artist payout after closing OTP — release is admin-manual only.
+enum PayoutStatus {
+  not_applicable
+  setup_required
+  released
 }
 
 model Booking {
@@ -212,6 +222,13 @@ model Booking {
   razorpayOrderId   String?     @unique @map("razorpay_order_id")
   razorpayPaymentId String?     @unique @map("razorpay_payment_id")
   paidAt            DateTime?   @map("paid_at") @db.Timestamptz(6)
+  /// Six-digit OTPs minted on payment verify — never returned to the artist.
+  arrivalCode       String?     @map("arrival_code") @db.VarChar(6)
+  closingCode       String?     @map("closing_code") @db.VarChar(6)
+  arrivalAttempts   Int         @default(0) @map("arrival_attempts")
+  closingAttempts   Int         @default(0) @map("closing_attempts")
+  venueVideoPath    String?     @map("venue_video_path")
+  payoutStatus      PayoutStatus @default(not_applicable) @map("payout_status")
   review          ArtistReview?
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -220,6 +237,7 @@ model Booking {
   @@index([artistProfileId])
   @@index([status])
   @@index([paymentStatus])
+  @@index([payoutStatus])
   @@map("bookings")
 }
 

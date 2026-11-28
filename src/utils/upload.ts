@@ -4,7 +4,7 @@ export const UPLOAD_PART_SIZE = 5 * 1024 * 1024;
 /** Presigned URL lifetime (seconds). Frontend re-requests on expiry. */
 export const UPLOAD_URL_EXPIRES_IN = 900;
 
-export const UPLOAD_PURPOSES = ["photo", "artPhoto", "faceVideo", "reel"] as const;
+export const UPLOAD_PURPOSES = ["photo", "artPhoto", "faceVideo", "reel", "venueVideo"] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);

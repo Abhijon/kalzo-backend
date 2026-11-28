@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 import * as artistService from "../services/artist.service";
+import * as bookingService from "../services/booking.service";
 import { toFlatArtist } from "../utils/artistResponse";
 import { ApiError } from "../utils/apiError";
+import { BOOKING_STATUS } from "../utils/bookingStatus";
+import { toBookingDto } from "../utils/bookingResponse";
 import { paginationMeta, parsePagination } from "../utils/pagination";
 import { sendSuccess } from "../utils/response";
 import { assertKycCompleted } from "../utils/kyc";
@@ -60,5 +63,32 @@ export async function rejectArtist(req: Request, res: Response) {
   sendSuccess(res, {
     message: "Artist rejected.",
     artist: toFlatArtist(artist),
+  });
+}
+
+/**
+ * POST /admin/bookings/:id/release-payout
+ * Manual payout release after closing OTP — does not claim a bank transfer succeeded.
+ */
+export async function releaseBookingPayout(req: Request, res: Response) {
+  const booking = await bookingService.findBookingById(String(req.params.id));
+  if (!booking) throw new ApiError(404, "Booking not found");
+  if (booking.status !== BOOKING_STATUS.COMPLETED) {
+    throw new ApiError(400, "Only completed bookings can be marked for payout release");
+  }
+  if (booking.payoutStatus === "released") {
+    sendSuccess(res, {
+      message: "Payout already marked released.",
+      booking: toBookingDto(booking, "admin"),
+    });
+    return;
+  }
+
+  const updated = await bookingService.updateBookingFields(booking.id, {
+    payoutStatus: "released",
+  });
+  sendSuccess(res, {
+    message: "Payout marked released for admin settlement tracking.",
+    booking: toBookingDto(updated, "admin"),
   });
 }

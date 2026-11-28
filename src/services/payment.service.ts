@@ -7,6 +7,7 @@ import {
   verifyPaymentSignature,
 } from "../lib/razorpay";
 import { ApiError } from "../utils/apiError";
+import { newBookingCodes } from "../utils/bookingCodes";
 import { PAYMENT_STATUS } from "../utils/paymentStatus";
 import { bookingSelect } from "./booking.service";
 
@@ -217,6 +218,8 @@ export async function verifyPayment(input: {
   });
   if (!ok) throw new ApiError(400, "Invalid Razorpay payment signature");
 
+  const codes = newBookingCodes();
+
   // Atomic: only one request can flip unpaid/created → paid
   const updated = await prisma.booking.updateMany({
     where: {
@@ -228,6 +231,10 @@ export async function verifyPayment(input: {
       paymentStatus: PAYMENT_STATUS.PAID,
       razorpayPaymentId: input.paymentId,
       paidAt: new Date(),
+      arrivalCode: codes.arrival,
+      closingCode: codes.closing,
+      arrivalAttempts: 0,
+      closingAttempts: 0,
     },
   });
 

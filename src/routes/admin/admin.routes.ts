@@ -133,4 +133,16 @@ router.patch(
   adminController.rejectArtist,
 );
 
+const bookingIdParam = z.object({
+  id: z.uuid("Booking id must be a valid UUID"),
+});
+
+/** Manual payout release after show completion (admin settlement tracking). */
+router.post(
+  "/admin/bookings/:id/release-payout",
+  ...adminOrArtist,
+  validateParams(bookingIdParam),
+  adminController.releaseBookingPayout,
+);
+
 export default router;
